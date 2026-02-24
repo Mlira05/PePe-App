@@ -14,6 +14,7 @@ import {
   type AppData,
   type ImportRecord,
   type Profile,
+  type WorkoutSession,
   type WorkoutPlan,
 } from '@/src/types/models';
 
@@ -28,6 +29,7 @@ interface AppStoreValue {
   deleteWorkoutPlan: (planId: string) => Promise<void>;
   importWorkoutPlans: (plans: WorkoutPlan[], importRecord: ImportRecord) => Promise<void>;
   addImportRecord: (record: ImportRecord) => Promise<void>;
+  addSession: (session: WorkoutSession) => Promise<void>;
   reload: () => Promise<void>;
 }
 
@@ -122,6 +124,12 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
       },
       addImportRecord: async (record) => {
         const nextData = { ...data, imports: [record, ...data.imports] };
+        setData(nextData);
+        await saveAppData(nextData);
+      },
+      addSession: async (session) => {
+        const nextSessions = [session, ...data.sessions];
+        const nextData = { ...data, sessions: nextSessions };
         setData(nextData);
         await saveAppData(nextData);
       },
