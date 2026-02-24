@@ -12,6 +12,7 @@ import { loadAppData, saveAppData } from '@/src/db/appDataStore';
 import {
   createDefaultAppData,
   type AppData,
+  type ImportRecord,
   type Profile,
   type WorkoutPlan,
 } from '@/src/types/models';
@@ -25,6 +26,8 @@ interface AppStoreValue {
   saveProfile: (profile: Profile) => Promise<void>;
   upsertWorkoutPlan: (plan: WorkoutPlan) => Promise<void>;
   deleteWorkoutPlan: (planId: string) => Promise<void>;
+  importWorkoutPlans: (plans: WorkoutPlan[], importRecord: ImportRecord) => Promise<void>;
+  addImportRecord: (record: ImportRecord) => Promise<void>;
   reload: () => Promise<void>;
 }
 
@@ -107,6 +110,20 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
         const nextPlans = data.workoutPlans.filter((item) => item.id !== planId);
         setData((prev) => ({ ...prev, workoutPlans: nextPlans }));
         await saveAppData({ ...data, workoutPlans: nextPlans });
+      },
+      importWorkoutPlans: async (plans, importRecord) => {
+        const nextPlans = [...data.workoutPlans, ...plans].sort((a, b) =>
+          a.dayLabel.localeCompare(b.dayLabel, 'pt-BR'),
+        );
+        const nextImports = [importRecord, ...data.imports];
+        const nextData = { ...data, workoutPlans: nextPlans, imports: nextImports };
+        setData(nextData);
+        await saveAppData(nextData);
+      },
+      addImportRecord: async (record) => {
+        const nextData = { ...data, imports: [record, ...data.imports] };
+        setData(nextData);
+        await saveAppData(nextData);
       },
       reload: async () => {
         const loaded = await loadAppData();
