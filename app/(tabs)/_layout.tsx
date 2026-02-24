@@ -2,11 +2,15 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs, useRouter } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
+import { useI18n } from '@/src/i18n/useI18n';
+import { useAppStore } from '@/src/state/AppStore';
 import { useAppTheme } from '@/src/theme/useAppTheme';
 
 export default function TabLayout() {
   const router = useRouter();
+  const { data, saveSettings } = useAppStore();
   const { colors } = useAppTheme();
+  const { t, isEnglish } = useI18n();
 
   return (
     <Tabs
@@ -24,6 +28,16 @@ export default function TabLayout() {
         headerTitleStyle: { color: colors.text },
         headerRight: () => (
           <View style={{ flexDirection: 'row', gap: 12, marginRight: 6 }}>
+            <Pressable
+              onPress={() =>
+                void saveSettings({
+                  ...data.settings,
+                  language: isEnglish ? 'pt-BR' : 'en',
+                })
+              }
+            >
+              <FontAwesome size={18} name="globe" color={colors.accent} />
+            </Pressable>
             <Pressable onPress={() => router.push('/profile')}>
               <FontAwesome size={20} name="user-circle-o" color={colors.accent} />
             </Pressable>
@@ -37,28 +51,28 @@ export default function TabLayout() {
       <Tabs.Screen
         name="plans"
         options={{
-          title: 'Treinos',
+          title: t('tabs.plans'),
           tabBarIcon: ({ color }) => <FontAwesome size={20} name="list-alt" color={color} />,
         }}
       />
       <Tabs.Screen
         name="imports"
         options={{
-          title: 'Importar',
+          title: t('tabs.imports'),
           tabBarIcon: ({ color }) => <FontAwesome size={20} name="upload" color={color} />,
         }}
       />
       <Tabs.Screen
         name="runner"
         options={{
-          title: 'Sessao',
+          title: t('tabs.session'),
           tabBarIcon: ({ color }) => <FontAwesome size={20} name="play-circle" color={color} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: 'Analytics',
+          title: t('tabs.analytics'),
           tabBarIcon: ({ color }) => <FontAwesome size={20} name="bar-chart" color={color} />,
         }}
       />

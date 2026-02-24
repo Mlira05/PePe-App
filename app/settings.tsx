@@ -4,29 +4,48 @@ import { StyleSheet, Text, View } from 'react-native';
 import { ScreenShell } from '@/src/components/ScreenShell';
 import { FormField } from '@/src/components/ui/FormField';
 import { PrimaryButton } from '@/src/components/ui/PrimaryButton';
+import { useI18n } from '@/src/i18n/useI18n';
 import { useAppStore } from '@/src/state/AppStore';
 import { useAppTheme } from '@/src/theme/useAppTheme';
 
 export default function SettingsRoute() {
   const { data, saveSettings } = useAppStore();
   const { colors, mode } = useAppTheme();
+  const { t, isEnglish } = useI18n();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const settings = data.settings;
 
   return (
-    <ScreenShell title="Configs" subtitle="Preferencias locais, timers e privacidade">
+    <ScreenShell title={t('settings.title')} subtitle={t('settings.subtitle')}>
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Tema</Text>
+        <Text style={styles.sectionTitle}>{t('settings.language')}</Text>
+        <Text style={styles.helper}>{t('settings.languageHelp')}</Text>
+        <View style={styles.row}>
+          <PrimaryButton
+            label={t('settings.portuguese')}
+            onPress={() => void saveSettings({ ...settings, language: 'pt-BR' })}
+            variant={!isEnglish ? 'primary' : 'secondary'}
+          />
+          <PrimaryButton
+            label={t('settings.english')}
+            onPress={() => void saveSettings({ ...settings, language: 'en' })}
+            variant={isEnglish ? 'primary' : 'secondary'}
+          />
+        </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>{t('settings.theme')}</Text>
         <Text style={styles.helper}>Padrao atual: fundo escuro com roxo claro. Mude para claro se preferir.</Text>
         <View style={styles.row}>
           <PrimaryButton
-            label="Escuro (padrao)"
+            label={t('settings.darkDefault')}
             onPress={() => void saveSettings({ ...settings, colorMode: 'dark' })}
             variant={mode === 'dark' ? 'primary' : 'secondary'}
           />
           <PrimaryButton
-            label="Claro"
+            label={t('settings.light')}
             onPress={() => void saveSettings({ ...settings, colorMode: 'light' })}
             variant={mode === 'light' ? 'primary' : 'secondary'}
           />

@@ -1,6 +1,7 @@
 export type ExperienceLevel = 'iniciante' | 'intermediario' | 'avancado';
 export type SedentaryLevel = 'baixo' | 'medio' | 'alto';
 export type ColorMode = 'dark' | 'light';
+export type AppLanguage = 'pt-BR' | 'en';
 export type SetType = 'warmup' | 'working' | 'drop' | 'failure';
 export type MuscleGroup =
   | 'chest'
@@ -113,6 +114,7 @@ export interface SessionDraft {
   actualRirInput: string;
   actualTempoInput: string;
   notesInput: string;
+  setElapsedSeconds: number;
   setLogs: SessionSetLog[];
   voiceMuted: boolean;
   updatedAt: string;
@@ -143,6 +145,7 @@ export interface ImportRecord {
 
 export interface AppSettings {
   colorMode: ColorMode;
+  language: AppLanguage;
   timer: {
     autoStartRestAfterSet: boolean;
     warn10Seconds: boolean;
@@ -204,6 +207,7 @@ export function createDefaultAppData(): AppData {
     sessionDraft: undefined,
     settings: {
       colorMode: 'dark',
+      language: 'pt-BR',
       timer: {
         autoStartRestAfterSet: true,
         warn10Seconds: true,

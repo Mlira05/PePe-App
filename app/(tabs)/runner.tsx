@@ -6,6 +6,7 @@ import * as Speech from 'expo-speech';
 import { ScreenShell } from '@/src/components/ScreenShell';
 import { FormField } from '@/src/components/ui/FormField';
 import { PrimaryButton } from '@/src/components/ui/PrimaryButton';
+import { useI18n } from '@/src/i18n/useI18n';
 import { buildCoachTimeline } from '@/src/lib/coachTimeline';
 import { makeId } from '@/src/lib/id';
 import {
@@ -25,18 +26,19 @@ type ActiveSession = SessionDraft;
 export default function RunnerScreen() {
   const { data, addSession, patchData, clearSessionDraft, saveSettings } = useAppStore();
   const { colors } = useAppTheme();
+  const { t, lang } = useI18n();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [status, setStatus] = useState('');
   const [voiceStatus, setVoiceStatus] = useState('');
-  const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
   const [showTimelinePreview, setShowTimelinePreview] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(false);
 
-  const listenTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const setVoiceTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const scheduledRestAlertsRef = useRef<ScheduledRestAlerts | null>(null);
   const restCueMarksRef = useRef<{ warned10: boolean; ended: boolean }>({ warned10: false, ended: false });
+  const restNotificationsKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!selectedPlanId && data.workoutPlans[0]) {
@@ -49,8 +51,9 @@ export default function RunnerScreen() {
       return;
     }
     if (data.sessionDraft) {
-      setActiveSession(data.sessionDraft);
-      setSelectedPlanId(data.sessionDraft.workoutPlanId);
+      const normalizedDraft = normalizeDraft(data.sessionDraft);
+      setActiveSession(normalizedDraft);
+      setSelectedPlanId(normalizedDraft.workoutPlanId);
     }
     setDraftHydrated(true);
   }, [data.sessionDraft, draftHydrated]);
@@ -61,12 +64,13 @@ export default function RunnerScreen() {
   const currentStep = activeSession ? steps[activeSession.stepIndex] : undefined;
   const currentPhase = activeSession?.phase;
   const currentStepIndex = activeSession?.stepIndex;
+  const currentSetElapsedSeconds = activeSession?.setElapsedSeconds;
 
   const isVoiceMuted = activeSession?.voiceMuted ?? true;
 
   useEffect(() => {
     return () => {
-      stopTimelinePlayback();
+      stopSetVoicePlayback();
       void cancelScheduledRestAlerts(scheduledRestAlertsRef.current);
     };
   }, []);
@@ -85,25 +89,19 @@ export default function RunnerScreen() {
   }, [activeSession, patchData]);
 
   useEffect(() => {
-    if (!activeSession || activeSession.phase !== 'rest') {
+    if (currentPhase !== 'rest') {
       restCueMarksRef.current = { warned10: false, ended: false };
+      restNotificationsKeyRef.current = null;
       void cancelScheduledRestAlerts(scheduledRestAlertsRef.current);
       scheduledRestAlertsRef.current = null;
       return;
     }
+  }, [currentPhase]);
 
-    const restSeconds = activeSession.restRemaining;
-    if (restSeconds <= 0) {
+  useEffect(() => {
+    if (!activeSession || activeSession.phase !== 'rest') {
       return;
     }
-
-    restCueMarksRef.current = { warned10: false, ended: false };
-    void scheduleRestAlerts(restSeconds, data.settings.timer)
-      .then((alerts) => {
-        scheduledRestAlertsRef.current = alerts;
-      })
-      .catch(() => undefined);
-
     const timer = setTimeout(() => {
       setActiveSession((prev) => {
         if (!prev || prev.phase !== 'rest') {
@@ -138,6 +136,20 @@ export default function RunnerScreen() {
   }, [activeSession, steps.length, data.settings.timer]);
 
   useEffect(() => {
+    if (currentPhase !== 'set_active') {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setActiveSession((prev) =>
+        prev && prev.phase === 'set_active'
+          ? { ...prev, setElapsedSeconds: prev.setElapsedSeconds + 1, updatedAt: new Date().toISOString() }
+          : prev,
+      );
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [currentPhase, currentSetElapsedSeconds]);
+
+  useEffect(() => {
     if (!currentStep || currentPhase !== 'set_ready') {
       return;
     }
@@ -153,6 +165,7 @@ export default function RunnerScreen() {
         actualRirInput: currentStep.targetRir != null ? String(currentStep.targetRir) : '',
         actualTempoInput: currentStep.targetTempo ?? '',
         notesInput: '',
+        setElapsedSeconds: 0,
         updatedAt: new Date().toISOString(),
       };
     });
@@ -167,7 +180,7 @@ export default function RunnerScreen() {
       setStatus('O plano selecionado nao possui series.');
       return;
     }
-    stopTimelinePlayback();
+    stopSetVoicePlayback();
     const draft: ActiveSession = {
       id: makeId('session'),
       workoutPlanId: selectedPlan.id,
@@ -182,6 +195,7 @@ export default function RunnerScreen() {
       actualRirInput: '',
       actualTempoInput: '',
       notesInput: '',
+      setElapsedSeconds: 0,
       setLogs: [],
       voiceMuted: false,
       updatedAt: new Date().toISOString(),
@@ -189,34 +203,47 @@ export default function RunnerScreen() {
     setActiveSession(draft);
     setStatus('');
     setVoiceStatus('');
-    if (!draft.voiceMuted) {
-      startTimelinePlayback();
-    }
   }
 
   function resumeDraft() {
     if (!data.sessionDraft) {
       return;
     }
-    setSelectedPlanId(data.sessionDraft.workoutPlanId);
-    setActiveSession(data.sessionDraft);
+    const normalizedDraft = normalizeDraft(data.sessionDraft);
+    setSelectedPlanId(normalizedDraft.workoutPlanId);
+    setActiveSession(normalizedDraft);
     setStatus('Rascunho retomado.');
   }
 
   async function discardDraft() {
+    stopSetVoicePlayback();
     setActiveSession(null);
     await clearSessionDraft();
     setStatus('Rascunho descartado.');
   }
 
   function startSet() {
-    setActiveSession((prev) => (prev ? { ...prev, phase: 'set_active', updatedAt: new Date().toISOString() } : prev));
+    if (!currentStep) {
+      return;
+    }
+    setActiveSession((prev) =>
+      prev
+        ? {
+            ...prev,
+            phase: 'set_active',
+            setElapsedSeconds: 0,
+            updatedAt: new Date().toISOString(),
+          }
+        : prev,
+    );
+    startSetVoicePlayback(currentStep, 0);
   }
 
   function completeSet() {
     if (!activeSession || !currentStep) {
       return;
     }
+    stopSetVoicePlayback();
 
     const log: SessionSetLog = {
       exerciseId: currentStep.exerciseId,
@@ -247,17 +274,37 @@ export default function RunnerScreen() {
           : 'after_set'
         : 'after_set';
 
+    const nextRestSeconds =
+      !isLastStep && data.settings.timer.autoStartRestAfterSet ? currentStep.restAfterSeconds : 0;
+
     setActiveSession((prev) =>
       prev
         ? {
             ...prev,
             setLogs: nextLogs,
             phase: isLastStep ? 'done' : nextPhaseIfNotDone,
-            restRemaining: !isLastStep && data.settings.timer.autoStartRestAfterSet ? currentStep.restAfterSeconds : 0,
+            restRemaining: nextRestSeconds,
+            setElapsedSeconds: 0,
             updatedAt: new Date().toISOString(),
           }
         : prev,
     );
+
+    if (isLastStep) {
+      speakIfAllowed(lang === 'en' ? 'Great job! Workout completed.' : 'Mandou bem! Treino concluido.');
+      return;
+    }
+
+    if (nextPhaseIfNotDone === 'rest' && nextRestSeconds > 0) {
+      void rescheduleRestAlerts(nextRestSeconds);
+      speakIfAllowed(
+        lang === 'en'
+          ? `Great job! Rest for ${nextRestSeconds} seconds.`
+          : `Mandou bem! Descanse por ${nextRestSeconds} segundos.`,
+      );
+    } else {
+      speakIfAllowed(lang === 'en' ? 'Great job! Ready for the next set.' : 'Mandou bem! Prepare a proxima serie.');
+    }
   }
 
   function startRest() {
@@ -268,21 +315,31 @@ export default function RunnerScreen() {
       goToNextExercise();
       return;
     }
+    stopSetVoicePlayback();
+    void rescheduleRestAlerts(currentStep.restAfterSeconds);
     setActiveSession((prev) =>
       prev
         ? {
             ...prev,
             phase: 'rest',
             restRemaining: currentStep.restAfterSeconds,
+            setElapsedSeconds: 0,
             updatedAt: new Date().toISOString(),
           }
         : prev,
     );
+    speakIfAllowed(
+      lang === 'en'
+        ? `Great job! Rest for ${currentStep.restAfterSeconds} seconds.`
+        : `Mandou bem! Descanse por ${currentStep.restAfterSeconds} segundos.`,
+    );
   }
 
   function goToNextExercise() {
+    stopSetVoicePlayback();
     void cancelScheduledRestAlerts(scheduledRestAlertsRef.current);
     scheduledRestAlertsRef.current = null;
+    restNotificationsKeyRef.current = null;
     setActiveSession((prev) => {
       if (!prev) {
         return prev;
@@ -293,6 +350,7 @@ export default function RunnerScreen() {
         stepIndex: nextStepIndex,
         phase: nextStepIndex >= steps.length ? 'done' : 'set_ready',
         restRemaining: 0,
+        setElapsedSeconds: 0,
         updatedAt: new Date().toISOString(),
       };
     });
@@ -302,7 +360,7 @@ export default function RunnerScreen() {
     if (!activeSession) {
       return;
     }
-    stopTimelinePlayback();
+    stopSetVoicePlayback();
     await cancelScheduledRestAlerts(scheduledRestAlertsRef.current);
     scheduledRestAlertsRef.current = null;
 
@@ -330,7 +388,10 @@ export default function RunnerScreen() {
       }
       const nextMuted = !prev.voiceMuted;
       if (nextMuted) {
-        stopTimelinePlayback();
+        stopSetVoicePlayback();
+      } else if (prev.phase === 'set_active' && currentStep) {
+        // Resume per-set cues from the current execution timer position.
+        startSetVoicePlayback(currentStep, prev.setElapsedSeconds);
       }
       return { ...prev, voiceMuted: nextMuted, updatedAt: new Date().toISOString() };
     });
@@ -355,52 +416,69 @@ export default function RunnerScreen() {
     updateActiveDraftField('actualRepsInput', next ? String(next) : '');
   }
 
-  function startTimelinePlayback() {
-    const draft = activeSession;
-    if (!draft) {
-      setVoiceStatus('Inicie ou retome uma sessao para reproduzir a voz.');
+  async function rescheduleRestAlerts(restSeconds: number) {
+    const key = `${activeSession?.id ?? 'none'}:${activeSession?.stepIndex ?? -1}:${restSeconds}`;
+    if (restNotificationsKeyRef.current === key) {
       return;
     }
-    if (draft.voiceMuted) {
-      setVoiceStatus('Voz esta mutada.');
+    restNotificationsKeyRef.current = key;
+    await cancelScheduledRestAlerts(scheduledRestAlertsRef.current);
+    scheduledRestAlertsRef.current = null;
+    if (restSeconds <= 0) {
       return;
     }
-    if (!selectedPlan) {
-      setVoiceStatus('Selecione um plano para gerar a timeline.');
-      return;
+    try {
+      scheduledRestAlertsRef.current = await scheduleRestAlerts(restSeconds, data.settings.timer);
+    } catch {
+      // keep silent in the MVP; notification permissions vary across devices.
     }
-    if (coachTimeline.cues.length === 0) {
-      setVoiceStatus('O plano nao possui series para gerar cues.');
-      return;
-    }
+  }
 
-    stopTimelinePlayback();
-    setIsTimelinePlaying(true);
-    setVoiceStatus('Coach de voz iniciado.');
+  function adjustRest(deltaSeconds: number) {
+    setActiveSession((prev) => {
+      if (!prev || prev.phase !== 'rest') {
+        return prev;
+      }
+      const next = Math.max(0, prev.restRemaining + deltaSeconds);
+      void rescheduleRestAlerts(next);
+      return { ...prev, restRemaining: next, updatedAt: new Date().toISOString() };
+    });
+  }
 
-    coachTimeline.cues.forEach((cue) => {
+  function startSetVoicePlayback(step: RunnerStep, fromElapsedSec: number) {
+    if (!activeSession || activeSession.voiceMuted) {
+      return;
+    }
+    stopSetVoicePlayback();
+    const cues = buildSetVoiceCues(step, lang);
+    const remainingCues = cues.filter((cue) => cue.atSec >= fromElapsedSec);
+    if (remainingCues.length === 0) {
+      return;
+    }
+    setVoiceStatus(lang === 'en' ? 'Voice following the current set.' : 'Voz acompanhando a serie atual.');
+    remainingCues.forEach((cue) => {
       const timeout = setTimeout(() => {
-        Speech.speak(cue.textPtBr, {
-          language: 'pt-BR',
+        Speech.speak(cue.text, {
+          language: lang,
           rate: 0.95,
           pitch: 1,
         });
-      }, cue.offsetSec * 1000);
-      listenTimeoutsRef.current.push(timeout);
+      }, Math.max(0, cue.atSec - fromElapsedSec) * 1000);
+      setVoiceTimeoutsRef.current.push(timeout);
     });
-
-    const doneTimeout = setTimeout(() => {
-      setIsTimelinePlaying(false);
-      setVoiceStatus('Timeline concluida.');
-    }, (coachTimeline.estimatedTotalSec + 2) * 1000);
-    listenTimeoutsRef.current.push(doneTimeout);
   }
 
-  function stopTimelinePlayback() {
-    listenTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
-    listenTimeoutsRef.current = [];
+  function stopSetVoicePlayback() {
+    setVoiceTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+    setVoiceTimeoutsRef.current = [];
     Speech.stop();
-    setIsTimelinePlaying(false);
+  }
+
+  function speakIfAllowed(text: string) {
+    if (!activeSession || activeSession.voiceMuted) {
+      return;
+    }
+    Speech.speak(text, { language: lang, rate: 0.95, pitch: 1 });
   }
 
   const coachText =
@@ -410,14 +488,16 @@ export default function RunnerScreen() {
           activeSession.phase === 'rest' ? 'rest' : activeSession.phase === 'done' ? 'done' : 'set',
           activeSession.restRemaining,
         )
-      : 'Selecione um plano e inicie uma sessao. O texto do coach fica sempre visivel.';
+      : lang === 'en'
+        ? 'Select a plan and start a session. Coach text stays visible all the time.'
+        : 'Selecione um plano e inicie uma sessao. O texto do coach fica sempre visivel.';
 
   const lastTime = currentStep ? getLastTimeForExercise(data.sessions, currentStep.exerciseName) : undefined;
 
   return (
-    <ScreenShell title="Sessao" subtitle="Rapido para usar na academia: texto + voz + draft local">
+    <ScreenShell title={t('runner.title')} subtitle={t('runner.subtitle')}>
       <View style={styles.card}>
-        <Text style={styles.label}>Plano de treino</Text>
+        <Text style={styles.label}>{lang === 'en' ? 'Workout plan' : 'Plano de treino'}</Text>
         <View style={styles.pickerWrap}>
           <Picker
             selectedValue={selectedPlanId ?? ''}
@@ -425,7 +505,7 @@ export default function RunnerScreen() {
             dropdownIconColor={colors.accent}
             onValueChange={(value) => setSelectedPlanId(String(value))}
           >
-            <Picker.Item label="Selecione um plano" value="" />
+            <Picker.Item label={lang === 'en' ? 'Select a plan' : 'Selecione um plano'} value="" />
             {data.workoutPlans.map((plan) => (
               <Picker.Item key={plan.id} label={plan.dayLabel} value={plan.id} />
             ))}
@@ -434,20 +514,13 @@ export default function RunnerScreen() {
 
         <View style={styles.rowWrap}>
           <PrimaryButton
-            label={isVoiceMuted ? 'Desmutar Voz' : 'Mutar Voz'}
+            label={isVoiceMuted ? t('runner.unmuteVoice') : t('runner.muteVoice')}
             onPress={toggleVoiceMute}
             variant={isVoiceMuted ? 'secondary' : 'primary'}
             disabled={!activeSession}
           />
           <PrimaryButton
-            label={isTimelinePlaying ? 'Voz tocando...' : 'Reproduzir Voz'}
-            onPress={startTimelinePlayback}
-            variant="secondary"
-            disabled={isTimelinePlaying || !activeSession}
-          />
-          <PrimaryButton label="Parar Voz" onPress={stopTimelinePlayback} variant="secondary" />
-          <PrimaryButton
-            label={showTimelinePreview ? 'Ocultar Timeline' : 'Ver Timeline'}
+            label={showTimelinePreview ? t('runner.hideTimeline') : t('runner.showTimeline')}
             onPress={() => setShowTimelinePreview((prev) => !prev)}
             variant="secondary"
           />
@@ -483,20 +556,20 @@ export default function RunnerScreen() {
         </View>
 
         <Text style={styles.helper}>
-          Voz: {activeSession ? (isVoiceMuted ? 'mutada' : 'ativa') : 'sem sessao'} • Timeline:{' '}
+          {lang === 'en' ? 'Voice' : 'Voz'}: {activeSession ? (isVoiceMuted ? (lang === 'en' ? 'muted' : 'mutada') : (lang === 'en' ? 'active' : 'ativa')) : (lang === 'en' ? 'no session' : 'sem sessao')} • Timeline:{' '}
           {coachTimeline.estimatedTotalSec}s • Cues: {coachTimeline.cues.length}
         </Text>
         {voiceStatus ? <Text style={styles.status}>{voiceStatus}</Text> : null}
 
         {!activeSession && data.sessionDraft ? (
           <View style={styles.resumeBox}>
-            <Text style={styles.sectionTitle}>Rascunho encontrado</Text>
+            <Text style={styles.sectionTitle}>{lang === 'en' ? 'Draft found' : 'Rascunho encontrado'}</Text>
             <Text style={styles.helper}>
               {data.sessionDraft.workoutPlanLabel} • {new Date(data.sessionDraft.startedAt).toLocaleString('pt-BR')}
             </Text>
             <View style={styles.rowWrap}>
-              <PrimaryButton label="Retomar Rascunho" onPress={resumeDraft} />
-              <PrimaryButton label="Descartar" onPress={() => void discardDraft()} variant="danger" />
+              <PrimaryButton label={lang === 'en' ? 'Resume Draft' : 'Retomar Rascunho'} onPress={resumeDraft} />
+              <PrimaryButton label={lang === 'en' ? 'Discard' : 'Descartar'} onPress={() => void discardDraft()} variant="danger" />
             </View>
           </View>
         ) : null}
@@ -509,6 +582,7 @@ export default function RunnerScreen() {
           lastTime={lastTime}
           quickAdjust={data.settings.quickAdjust}
           showAdvanced={data.settings.session.showAdvancedSetFields}
+          lang={lang}
           onStartSession={startSession}
           onStartSet={startSet}
           onCompleteSet={completeSet}
@@ -516,6 +590,7 @@ export default function RunnerScreen() {
           onNextExercise={goToNextExercise}
           onFinish={finishAndSaveSession}
           onDiscardDraft={discardDraft}
+          onAdjustRest={adjustRest}
           onChangeReps={(v) => updateActiveDraftField('actualRepsInput', v)}
           onChangeWeight={(v) => updateActiveDraftField('actualWeightInput', v)}
           onChangeRpe={(v) => updateActiveDraftField('actualRpeInput', v)}
@@ -545,6 +620,7 @@ interface SessionContentProps {
   step?: RunnerStep;
   coachText: string;
   lastTime?: string;
+  lang: 'pt-BR' | 'en';
   quickAdjust: {
     weightStepSmallKg: number;
     weightStepLargeKg: number;
@@ -558,6 +634,7 @@ interface SessionContentProps {
   onNextExercise: () => void;
   onFinish: () => void;
   onDiscardDraft: () => Promise<void>;
+  onAdjustRest: (deltaSeconds: number) => void;
   onChangeReps: (value: string) => void;
   onChangeWeight: (value: string) => void;
   onChangeRpe: (value: string) => void;
@@ -574,6 +651,7 @@ function SessionContent({
   step,
   coachText,
   lastTime,
+  lang,
   quickAdjust,
   showAdvanced,
   onStartSession,
@@ -583,6 +661,7 @@ function SessionContent({
   onNextExercise,
   onFinish,
   onDiscardDraft,
+  onAdjustRest,
   onChangeReps,
   onChangeWeight,
   onChangeRpe,
@@ -592,44 +671,73 @@ function SessionContent({
   onNudgeWeight,
   onNudgeReps,
 }: SessionContentProps) {
+  const text = {
+    coach: lang === 'en' ? 'Coach' : 'Coach (pt-BR)',
+    startSession: lang === 'en' ? 'Start Session' : 'Iniciar Sessao',
+    activeSession: lang === 'en' ? 'Active session' : 'Sessao ativa',
+    phase: lang === 'en' ? 'Phase' : 'Fase',
+    loggedSets: lang === 'en' ? 'Logged sets' : 'Series registradas',
+    lastTime: lang === 'en' ? 'Last time' : 'Ultima vez',
+    executionTimer: lang === 'en' ? 'Execution timer' : 'Timer de execucao',
+    startSet: 'Start Set',
+    completeSet: 'Complete Set',
+    startRest: 'Start Rest',
+    nextExercise: 'Next Exercise',
+    rest: lang === 'en' ? 'Rest' : 'Descanso',
+    finishSave: lang === 'en' ? 'Finish & Save Session' : 'Finalizar e Salvar Sessao',
+    discardDraft: lang === 'en' ? 'Discard Draft' : 'Descartar Rascunho',
+  } as const;
+
   return (
     <View style={styles.readWrap}>
       <View style={styles.coachBox}>
-        <Text style={styles.coachTitle}>Coach (pt-BR)</Text>
+        <Text style={styles.coachTitle}>{text.coach}</Text>
         <Text style={styles.coachText}>{coachText}</Text>
       </View>
 
       {!session ? (
-        <PrimaryButton label="Iniciar Sessao" onPress={onStartSession} />
+        <PrimaryButton label={text.startSession} onPress={onStartSession} />
       ) : (
         <>
           <Text style={styles.helper}>
-            Sessao ativa: {session.workoutPlanLabel} • Fase: {session.phase.toUpperCase()}
+            {text.activeSession}: {session.workoutPlanLabel} • {text.phase}: {session.phase.toUpperCase()}
           </Text>
-          <Text style={styles.helper}>Series registradas: {session.setLogs.length}</Text>
+          <Text style={styles.helper}>
+            {text.loggedSets}: {session.setLogs.length}
+          </Text>
 
           {step ? (
             <View style={styles.setEditor}>
               <Text style={styles.sectionTitle}>{step.exerciseName}</Text>
               <Text style={styles.helper}>
-                Serie {step.setOrder}/{step.exerciseSetCount} • Tipo {step.setType ?? 'working'} • Alvo {step.targetReps}
+                Serie {step.setOrder}/{step.exerciseSetCount} • Tipo {step.setType ?? 'working'} • Alvo{' '}
+                {step.targetReps}
                 {step.targetWeightKg != null ? ` reps/${step.targetWeightKg}kg` : ' reps'}
                 {step.supersetGroupId ? ` • Superset ${step.supersetGroupId}` : ''}
                 {step.dropSetGroupId ? ` • Drop ${step.dropSetGroupId}` : ''}
               </Text>
-              {lastTime ? <Text style={styles.lastTime}>Ultima vez: {lastTime}</Text> : null}
+              {lastTime ? (
+                <Text style={styles.lastTime}>
+                  {text.lastTime}: {lastTime}
+                </Text>
+              ) : null}
+              {session.phase === 'set_active' ? (
+                <Text style={styles.executionTimer}>
+                  {text.executionTimer}: {session.setElapsedSeconds}s
+                </Text>
+              ) : null}
 
               <View style={styles.rowWrap}>
                 {session.phase === 'set_ready' ? (
                   <>
-                    <PrimaryButton label="Start Set" onPress={onStartSet} />
-                    <PrimaryButton label="Next Exercise" onPress={onNextExercise} variant="secondary" />
+                    <PrimaryButton label={text.startSet} onPress={onStartSet} />
+                    <PrimaryButton label={text.nextExercise} onPress={onNextExercise} variant="secondary" />
                   </>
                 ) : null}
                 {session.phase === 'after_set' ? (
                   <>
-                    <PrimaryButton label="Start Rest" onPress={onStartRest} />
-                    <PrimaryButton label="Next Exercise" onPress={onNextExercise} variant="secondary" />
+                    <PrimaryButton label={text.startRest} onPress={onStartRest} />
+                    <PrimaryButton label={text.nextExercise} onPress={onNextExercise} variant="secondary" />
                   </>
                 ) : null}
               </View>
@@ -699,7 +807,7 @@ function SessionContent({
                   ) : null}
 
                   {session.phase === 'set_active' ? (
-                    <PrimaryButton label="Complete Set" onPress={onCompleteSet} />
+                    <PrimaryButton label={text.completeSet} onPress={onCompleteSet} />
                   ) : null}
                 </>
               )}
@@ -708,19 +816,24 @@ function SessionContent({
 
           {session.phase === 'rest' ? (
             <View style={styles.restBox}>
-              <Text style={styles.restLabel}>Descanso</Text>
+              <Text style={styles.restLabel}>{text.rest}</Text>
               <Text style={styles.restTime}>{session.restRemaining}s</Text>
               <View style={styles.rowWrap}>
-                <PrimaryButton label="Start Set" onPress={onNextExercise} />
-                <PrimaryButton label="Next Exercise" onPress={onNextExercise} variant="secondary" />
+                <PrimaryButton label="+10s" onPress={() => onAdjustRest(10)} variant="secondary" />
+                <PrimaryButton label="+30s" onPress={() => onAdjustRest(30)} variant="secondary" />
+                <PrimaryButton label="-10s" onPress={() => onAdjustRest(-10)} variant="secondary" />
+              </View>
+              <View style={styles.rowWrap}>
+                <PrimaryButton label={text.startSet} onPress={onNextExercise} />
+                <PrimaryButton label={text.nextExercise} onPress={onNextExercise} variant="secondary" />
               </View>
             </View>
           ) : null}
 
           {session.phase === 'done' ? (
             <View style={styles.rowWrap}>
-              <PrimaryButton label="Finalizar e Salvar Sessao" onPress={onFinish} />
-              <PrimaryButton label="Descartar Rascunho" onPress={() => void onDiscardDraft()} variant="danger" />
+              <PrimaryButton label={text.finishSave} onPress={onFinish} />
+              <PrimaryButton label={text.discardDraft} onPress={() => void onDiscardDraft()} variant="danger" />
             </View>
           ) : null}
         </>
@@ -739,6 +852,36 @@ function getLastTimeForExercise(sessions: WorkoutSession[], exerciseName: string
     return `${last.actualReps ?? last.targetReps} reps @ ${last.actualWeightKg ?? last.targetWeightKg ?? '-'} kg`;
   }
   return undefined;
+}
+
+function normalizeDraft(draft: SessionDraft): SessionDraft {
+  return {
+    ...draft,
+    setElapsedSeconds: typeof draft.setElapsedSeconds === 'number' ? draft.setElapsedSeconds : 0,
+  };
+}
+
+function buildSetVoiceCues(step: RunnerStep, lang: 'pt-BR' | 'en'): { atSec: number; text: string }[] {
+  const start =
+    lang === 'en'
+      ? `Start ${step.exerciseName}. Target ${step.targetReps} reps${step.targetWeightKg != null ? ` at ${step.targetWeightKg} kilos` : ''}.`
+      : `Comece ${step.exerciseName}. Meta de ${step.targetReps} reps${step.targetWeightKg != null ? ` com ${step.targetWeightKg} quilos` : ''}.`;
+  const weightReminder =
+    step.targetWeightKg == null
+      ? null
+      : {
+          atSec: 2,
+          text:
+            lang === 'en'
+              ? `Keep the load at ${step.targetWeightKg} kilos.`
+              : `Mantenha a carga em ${step.targetWeightKg} quilos.`,
+        };
+  const encouragement = {
+    atSec: Math.max(6, Math.min(14, Math.round(step.targetReps * 1.5))),
+    text: lang === 'en' ? 'Nice pace. Keep control.' : 'Bom ritmo. Mantem o controle.',
+  };
+
+  return [{ atSec: 0, text: start }, ...(weightReminder ? [weightReminder] : []), encouragement];
 }
 
 function normalizeOptionalText(value: string): string | undefined {
@@ -840,6 +983,11 @@ function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
       fontSize: 12,
       color: colors.accent,
       fontWeight: '600',
+    },
+    executionTimer: {
+      fontSize: 13,
+      color: colors.text,
+      fontWeight: '700',
     },
     advancedBox: {
       borderWidth: 1,
