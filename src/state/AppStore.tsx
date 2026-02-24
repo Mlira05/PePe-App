@@ -9,6 +9,7 @@ import {
 } from 'react';
 
 import { loadAppData, saveAppData } from '@/src/db/appDataStore';
+import { createDemoSeedData } from '@/src/lib/seedData';
 import {
   createDefaultAppData,
   type AppData,
@@ -30,6 +31,7 @@ interface AppStoreValue {
   importWorkoutPlans: (plans: WorkoutPlan[], importRecord: ImportRecord) => Promise<void>;
   addImportRecord: (record: ImportRecord) => Promise<void>;
   addSession: (session: WorkoutSession) => Promise<void>;
+  seedDemoData: () => Promise<void>;
   reload: () => Promise<void>;
 }
 
@@ -130,6 +132,11 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
       addSession: async (session) => {
         const nextSessions = [session, ...data.sessions];
         const nextData = { ...data, sessions: nextSessions };
+        setData(nextData);
+        await saveAppData(nextData);
+      },
+      seedDemoData: async () => {
+        const nextData = createDemoSeedData(data);
         setData(nextData);
         await saveAppData(nextData);
       },

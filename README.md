@@ -23,6 +23,8 @@ npm install
 npm run start
 ```
 
+Open on one device via Expo Go (Android/iPhone) or emulator.
+
 ## Checks
 
 ```bash
@@ -47,6 +49,27 @@ Optional columns:
 - `tagsJson` (JSON object string)
 
 One row should represent one set.
+
+## Sample Files
+
+- `samples/workout-import-sample.csv`
+- `samples/workout-import-sample.xlsx`
+
+## Quick Manual Test (Recommended)
+
+1. Start the app and open the `Importar` tab.
+2. Tap `Seed Demo Data` to populate local profile, workout plans, sessions, and history.
+3. Verify:
+   - `Perfil`: fields are filled and can be edited/saved.
+   - `Treinos`: demo plans exist and can be edited.
+   - `Historico`: sessions and analytics are visible.
+4. Optional import test:
+   - Use `Importar CSV` or `Importar XLSX`.
+   - Pick a file from `samples/` (copy to device storage first if using a physical phone).
+   - Confirm imported plans appear in `Treinos`.
+5. Runner test:
+   - Open `Sessao`, select a plan, start `READ`, log some sets, finish and save.
+   - Open `LISTEN`, start voice cues and verify TTS event cues.
 
 ## Data Storage
 

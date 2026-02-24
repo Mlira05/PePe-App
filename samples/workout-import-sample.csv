@@ -1,0 +1,11 @@
+dayLabel,exercise,targetReps,targetWeightKg,restSeconds,notes,supersetGroupId,tagsJson
+Segunda - Superior (CSV),Supino reto,10,60,90,,,
+Segunda - Superior (CSV),Supino reto,10,60,90,"ultima rep controlada",,
+Segunda - Superior (CSV),Remada curvada,10,50,90,,,
+Segunda - Superior (CSV),Remada curvada,10,50,90,,,
+Segunda - Superior (CSV),Elevacao lateral,15,8,45,"pausa de 1s no topo",SS-A,"{""pausedReps"":true}"
+Segunda - Superior (CSV),Rosca direta,12,20,45,,SS-A,"{""tempo"":3010}"
+Quarta - Inferior (CSV),Agachamento livre,8,80,120,,,
+Quarta - Inferior (CSV),Agachamento livre,8,80,120,"manter coluna neutra",,
+Quarta - Inferior (CSV),Levantamento terra romeno,10,70,90,,,
+Quarta - Inferior (CSV),Panturrilha em pe,15,40,45,,,

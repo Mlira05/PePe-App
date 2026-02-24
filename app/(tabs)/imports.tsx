@@ -12,7 +12,7 @@ import { useAppStore } from '@/src/state/AppStore';
 import type { ImportRecord } from '@/src/types/models';
 
 export default function ImportsScreen() {
-  const { data, addImportRecord, importWorkoutPlans } = useAppStore();
+  const { data, addImportRecord, importWorkoutPlans, seedDemoData } = useAppStore();
   const [googleSheetsUrl, setGoogleSheetsUrl] = useState('');
   const [status, setStatus] = useState('');
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -137,8 +137,26 @@ export default function ImportsScreen() {
     setGoogleSheetsUrl('');
   }
 
+  async function handleSeedDemoData() {
+    await seedDemoData();
+    setWarnings([]);
+    setStatus('Dados demo inseridos (perfil, planos e sessoes). Pode duplicar se clicar novamente.');
+  }
+
   return (
     <ScreenShell title="Importar" subtitle="Arquivos locais e stubs">
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Teste rapido</Text>
+        <Text style={styles.helper}>
+          Popular o app com dados demo locais para validar telas (perfil, treinos, sessoes e analytics).
+        </Text>
+        <PrimaryButton label="Seed Demo Data" onPress={() => void handleSeedDemoData()} variant="secondary" />
+        <Text style={styles.helper}>
+          Arquivos de exemplo no repo: <Text style={styles.code}>samples/workout-import-sample.csv</Text> e{' '}
+          <Text style={styles.code}>samples/workout-import-sample.xlsx</Text>
+        </Text>
+      </View>
+
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Importação local</Text>
         <View style={styles.row}>
