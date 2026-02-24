@@ -1,6 +1,8 @@
 import { ReactNode } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useAppTheme } from '@/src/theme/useAppTheme';
+
 interface Props {
   label: string;
   value: string;
@@ -20,19 +22,30 @@ export function FormField({
   multiline = false,
   rightSlot,
 }: Props) {
+  const { colors } = useAppTheme();
+
   return (
     <View style={styles.wrapper}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: colors.textMuted }]}>{label}</Text>
       <View style={styles.inputRow}>
         <TextInput
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={colors.textMuted}
           keyboardType={keyboardType}
           multiline={multiline}
           textAlignVertical={multiline ? 'top' : 'auto'}
-          style={[styles.input, multiline && styles.multiline, rightSlot ? styles.inputWithSlot : null]}
+          style={[
+            styles.input,
+            {
+              borderColor: colors.border,
+              backgroundColor: colors.inputBg,
+              color: colors.text,
+            },
+            multiline && styles.multiline,
+            rightSlot ? styles.inputWithSlot : null,
+          ]}
         />
         {rightSlot}
       </View>
@@ -47,7 +60,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#374151',
   },
   inputRow: {
     flexDirection: 'row',
@@ -58,11 +70,8 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 44,
     borderWidth: 1,
-    borderColor: '#d1d5db',
     borderRadius: 10,
     paddingHorizontal: 12,
-    backgroundColor: '#fff',
-    color: '#111827',
   },
   inputWithSlot: {
     flex: 0,

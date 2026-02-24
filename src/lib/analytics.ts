@@ -19,6 +19,14 @@ export interface ExercisePrStat {
   };
 }
 
+export interface SessionVolumePoint {
+  sessionId: string;
+  label: string;
+  dateIso: string;
+  volume: number;
+  planLabel: string;
+}
+
 export function getWeeklyTrainingStats(sessions: WorkoutSession[]): WeeklyTrainingStat[] {
   const perWeek = new Map<string, Set<string>>();
   sessions.forEach((session) => {
@@ -92,6 +100,25 @@ export function getExercisePrStats(sessions: WorkoutSession[]): ExercisePrStat[]
       };
     })
     .sort((a, b) => a.exerciseName.localeCompare(b.exerciseName, 'pt-BR'));
+}
+
+export function getSessionVolumeSeries(sessions: WorkoutSession[]): SessionVolumePoint[] {
+  return sessions
+    .map((session) => ({
+      sessionId: session.id,
+      label: new Date(session.startedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      dateIso: session.startedAt,
+      volume: Math.round(
+        session.setLogs.reduce((sum, log) => {
+          const reps = log.actualReps ?? log.targetReps ?? 0;
+          const weight = log.actualWeightKg ?? log.targetWeightKg ?? 0;
+          const vol = reps * weight;
+          return sum + (Number.isFinite(vol) ? vol : 0);
+        }, 0),
+      ),
+      planLabel: session.workoutPlanLabel,
+    }))
+    .sort((a, b) => a.dateIso.localeCompare(b.dateIso));
 }
 
 function getIsoWeekKey(date: Date): string {

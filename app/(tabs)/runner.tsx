@@ -10,13 +10,13 @@ import { buildCoachTimeline } from '@/src/lib/coachTimeline';
 import { makeId } from '@/src/lib/id';
 import { flattenWorkoutPlan, getReadCoachText } from '@/src/lib/workoutRuntime';
 import { useAppStore } from '@/src/state/AppStore';
+import { useAppTheme } from '@/src/theme/useAppTheme';
 import type { RunnerStep } from '@/src/lib/workoutRuntime';
 import type { SessionSetLog, WorkoutSession } from '@/src/types/models';
 
-type RunnerMode = 'read' | 'listen';
 type RunnerPhase = 'set' | 'rest' | 'done';
 
-interface ActiveReadSession {
+interface ActiveSession {
   id: string;
   planId: string;
   planLabel: string;
@@ -29,14 +29,17 @@ interface ActiveReadSession {
 
 export default function RunnerScreen() {
   const { data, addSession } = useAppStore();
-  const [mode, setMode] = useState<RunnerMode>('read');
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const [activeSession, setActiveSession] = useState<ActiveReadSession | null>(null);
+  const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [actualRepsInput, setActualRepsInput] = useState('');
   const [actualWeightInput, setActualWeightInput] = useState('');
   const [status, setStatus] = useState('');
-  const [listenStatus, setListenStatus] = useState('');
+  const [voiceStatus, setVoiceStatus] = useState('');
+  const [isVoiceMuted, setIsVoiceMuted] = useState(false);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
+  const [showTimelinePreview, setShowTimelinePreview] = useState(false);
   const listenTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
@@ -59,6 +62,13 @@ export default function RunnerScreen() {
   }, []);
 
   useEffect(() => {
+    if (isVoiceMuted) {
+      stopTimelinePlayback();
+      setVoiceStatus('Voz mutada.');
+    }
+  }, [isVoiceMuted]);
+
+  useEffect(() => {
     if (!activeSession || activeSession.phase !== 'rest') {
       return;
     }
@@ -74,12 +84,11 @@ export default function RunnerScreen() {
         if (nextRemaining > 0) {
           return { ...prev, restRemaining: nextRemaining };
         }
-        const nextStepIndex = Math.min(prev.stepIndex + 1, Math.max(0, steps.length - 1));
-        const nextPhase: RunnerPhase = nextStepIndex >= steps.length ? 'done' : 'set';
+        const nextStepIndex = Math.min(prev.stepIndex + 1, Math.max(0, steps.length));
         return {
           ...prev,
           stepIndex: nextStepIndex,
-          phase: nextPhase,
+          phase: nextStepIndex >= steps.length ? 'done' : 'set',
           restRemaining: 0,
         };
       });
@@ -100,11 +109,11 @@ export default function RunnerScreen() {
       setStatus('Selecione um plano.');
       return;
     }
-    const runnerSteps = flattenWorkoutPlan(selectedPlan);
-    if (runnerSteps.length === 0) {
-      setStatus('O plano selecionado não possui séries.');
+    if (steps.length === 0) {
+      setStatus('O plano selecionado nao possui series.');
       return;
     }
+    stopTimelinePlayback();
     setActiveSession({
       id: makeId('session'),
       planId: selectedPlan.id,
@@ -116,6 +125,9 @@ export default function RunnerScreen() {
       setLogs: [],
     });
     setStatus('');
+    if (!isVoiceMuted) {
+      startTimelinePlayback();
+    }
   }
 
   function markSetDone() {
@@ -175,6 +187,7 @@ export default function RunnerScreen() {
     if (!activeSession) {
       return;
     }
+    stopTimelinePlayback();
     const session: WorkoutSession = {
       id: activeSession.id,
       workoutPlanId: activeSession.planId,
@@ -190,20 +203,24 @@ export default function RunnerScreen() {
     };
     await addSession(session);
     setActiveSession(null);
-    setStatus('Sessão salva no histórico.');
+    setStatus('Sessao salva no historico.');
   }
 
   function startTimelinePlayback() {
+    if (isVoiceMuted) {
+      setVoiceStatus('Voz esta mutada.');
+      return;
+    }
     if (!selectedPlan) {
-      setListenStatus('Selecione um plano para gerar a timeline.');
+      setVoiceStatus('Selecione um plano para gerar a timeline.');
       return;
     }
     if (coachTimeline.cues.length === 0) {
-      setListenStatus('O plano não possui séries para gerar cues.');
+      setVoiceStatus('O plano nao possui series para gerar cues.');
       return;
     }
     stopTimelinePlayback();
-    setListenStatus('Coach TTS iniciado.');
+    setVoiceStatus('Coach de voz iniciado.');
     setIsTimelinePlaying(true);
 
     coachTimeline.cues.forEach((cue) => {
@@ -211,7 +228,7 @@ export default function RunnerScreen() {
         Speech.speak(cue.textPtBr, {
           language: 'pt-BR',
           rate: 0.95,
-          pitch: 1.0,
+          pitch: 1,
         });
       }, cue.offsetSec * 1000);
       listenTimeoutsRef.current.push(timeout);
@@ -219,7 +236,7 @@ export default function RunnerScreen() {
 
     const doneTimeout = setTimeout(() => {
       setIsTimelinePlaying(false);
-      setListenStatus('Timeline concluída.');
+      setVoiceStatus('Timeline concluida.');
     }, (coachTimeline.estimatedTotalSec + 2) * 1000);
     listenTimeoutsRef.current.push(doneTimeout);
   }
@@ -238,27 +255,19 @@ export default function RunnerScreen() {
           activeSession.phase === 'done' ? 'done' : activeSession.phase,
           activeSession.restRemaining,
         )
-      : 'Selecione um plano e inicie uma sessão para começar o runner.';
+      : 'Selecione um plano e inicie uma sessao. O texto do coach fica sempre visivel.';
 
   return (
-    <ScreenShell title="Sessão" subtitle="READ + LISTEN (coach timeline TTS)">
+    <ScreenShell title="Sessao" subtitle="Texto + voz juntos (mute opcional)">
       <View style={styles.card}>
-        <View style={styles.segmentRow}>
-          <PrimaryButton
-            label="READ"
-            onPress={() => setMode('read')}
-            variant={mode === 'read' ? 'primary' : 'secondary'}
-          />
-          <PrimaryButton
-            label="LISTEN"
-            onPress={() => setMode('listen')}
-            variant={mode === 'listen' ? 'primary' : 'secondary'}
-          />
-        </View>
-
         <Text style={styles.label}>Plano de treino</Text>
         <View style={styles.pickerWrap}>
-          <Picker selectedValue={selectedPlanId ?? ''} onValueChange={(value) => setSelectedPlanId(String(value))}>
+          <Picker
+            selectedValue={selectedPlanId ?? ''}
+            style={{ color: colors.text }}
+            dropdownIconColor={colors.accent}
+            onValueChange={(value) => setSelectedPlanId(String(value))}
+          >
             <Picker.Item label="Selecione um plano" value="" />
             {data.workoutPlans.map((plan) => (
               <Picker.Item key={plan.id} label={plan.dayLabel} value={plan.id} />
@@ -266,45 +275,53 @@ export default function RunnerScreen() {
           </Picker>
         </View>
 
-        {mode === 'read' ? (
-          <ReadTabContent
-            activeSession={activeSession}
-            currentStep={currentStep}
-            coachText={coachText}
-            actualRepsInput={actualRepsInput}
-            actualWeightInput={actualWeightInput}
-            onActualRepsChange={setActualRepsInput}
-            onActualWeightChange={setActualWeightInput}
-            onStartSession={startReadSession}
-            onMarkSetDone={markSetDone}
-            onSkipRest={skipRest}
-            onFinishAndSave={finishAndSaveSession}
+        <View style={styles.rowWrap}>
+          <PrimaryButton
+            label={isVoiceMuted ? 'Desmutar Voz' : 'Mutar Voz'}
+            onPress={() => setIsVoiceMuted((prev) => !prev)}
+            variant={isVoiceMuted ? 'secondary' : 'primary'}
           />
-        ) : (
-          <View style={styles.listenStub}>
-            <Text style={styles.listenTitle}>LISTEN (Coach Timeline + TTS)</Text>
-            <Text style={styles.helper}>
-              Cues por evento (sem contagem de reps): início do exercício, série, descanso, 10s restantes,
-              próxima série, lembrete de carga e incentivo ocasional.
-            </Text>
-            <View style={styles.row}>
-              <PrimaryButton
-                label={isTimelinePlaying ? 'Tocando...' : 'Iniciar Voz'}
-                onPress={startTimelinePlayback}
-                disabled={isTimelinePlaying}
-              />
-              <PrimaryButton label="Parar Voz" onPress={stopTimelinePlayback} variant="secondary" />
-            </View>
-            {listenStatus ? <Text style={styles.status}>{listenStatus}</Text> : null}
-            <Text style={styles.helper}>
-              Timeline estimada: {coachTimeline.estimatedTotalSec}s • Cues: {coachTimeline.cues.length}
-            </Text>
-            <View style={styles.timelineBox}>
-              <Text style={styles.timelineTitle}>coachTimeline.json (prévia)</Text>
-              <Text style={styles.timelineText}>{JSON.stringify(coachTimeline, null, 2)}</Text>
-            </View>
+          <PrimaryButton
+            label={isTimelinePlaying ? 'Voz tocando...' : 'Reproduzir Voz'}
+            onPress={startTimelinePlayback}
+            variant="secondary"
+            disabled={isTimelinePlaying}
+          />
+          <PrimaryButton label="Parar Voz" onPress={stopTimelinePlayback} variant="secondary" />
+          <PrimaryButton
+            label={showTimelinePreview ? 'Ocultar Timeline' : 'Ver Timeline'}
+            onPress={() => setShowTimelinePreview((prev) => !prev)}
+            variant="secondary"
+          />
+        </View>
+
+        <Text style={styles.helper}>
+          Voz: {isVoiceMuted ? 'mutada' : 'ativa'} • Timeline: {coachTimeline.estimatedTotalSec}s • Cues:{' '}
+          {coachTimeline.cues.length}
+        </Text>
+        {voiceStatus ? <Text style={styles.status}>{voiceStatus}</Text> : null}
+
+        <ReadSessionContent
+          styles={styles}
+          activeSession={activeSession}
+          currentStep={currentStep}
+          coachText={coachText}
+          actualRepsInput={actualRepsInput}
+          actualWeightInput={actualWeightInput}
+          onActualRepsChange={setActualRepsInput}
+          onActualWeightChange={setActualWeightInput}
+          onStartSession={startReadSession}
+          onMarkSetDone={markSetDone}
+          onSkipRest={skipRest}
+          onFinishAndSave={finishAndSaveSession}
+        />
+
+        {showTimelinePreview ? (
+          <View style={styles.timelineBox}>
+            <Text style={styles.timelineTitle}>coachTimeline.json (preview)</Text>
+            <Text style={styles.timelineText}>{JSON.stringify(coachTimeline, null, 2)}</Text>
           </View>
-        )}
+        ) : null}
 
         {status ? <Text style={styles.status}>{status}</Text> : null}
       </View>
@@ -312,8 +329,9 @@ export default function RunnerScreen() {
   );
 }
 
-interface ReadTabContentProps {
-  activeSession: ActiveReadSession | null;
+interface ReadSessionContentProps {
+  styles: ReturnType<typeof createStyles>;
+  activeSession: ActiveSession | null;
   currentStep?: RunnerStep;
   coachText: string;
   actualRepsInput: string;
@@ -326,7 +344,8 @@ interface ReadTabContentProps {
   onFinishAndSave: () => void;
 }
 
-function ReadTabContent({
+function ReadSessionContent({
+  styles,
   activeSession,
   currentStep,
   coachText,
@@ -338,7 +357,7 @@ function ReadTabContent({
   onMarkSetDone,
   onSkipRest,
   onFinishAndSave,
-}: ReadTabContentProps) {
+}: ReadSessionContentProps) {
   return (
     <View style={styles.readWrap}>
       <View style={styles.coachBox}>
@@ -347,24 +366,24 @@ function ReadTabContent({
       </View>
 
       {!activeSession ? (
-        <PrimaryButton label="Iniciar Sessão (READ)" onPress={onStartSession} />
+        <PrimaryButton label="Iniciar Sessao" onPress={onStartSession} />
       ) : (
         <>
           <Text style={styles.helper}>
-            Sessão ativa: {activeSession.planLabel} • Fase: {activeSession.phase.toUpperCase()}
+            Sessao ativa: {activeSession.planLabel} • Fase: {activeSession.phase.toUpperCase()}
           </Text>
-          <Text style={styles.helper}>Séries registradas: {activeSession.setLogs.length}</Text>
+          <Text style={styles.helper}>Series registradas: {activeSession.setLogs.length}</Text>
 
           {activeSession.phase === 'set' && currentStep ? (
             <View style={styles.setEditor}>
               <Text style={styles.sectionTitle}>{currentStep.exerciseName}</Text>
               <Text style={styles.helper}>
-                Série {currentStep.setOrder}/{currentStep.exerciseSetCount} • Alvo {currentStep.targetReps} reps
+                Serie {currentStep.setOrder}/{currentStep.exerciseSetCount} • Alvo {currentStep.targetReps} reps
                 {currentStep.targetWeightKg != null ? ` • ${currentStep.targetWeightKg} kg` : ''}
                 {currentStep.supersetGroupId ? ` • Superset ${currentStep.supersetGroupId}` : ''}
               </Text>
 
-              <View style={styles.row}>
+              <View style={styles.rowTwo}>
                 <View style={styles.half}>
                   <FormField
                     label="Reps realizadas"
@@ -384,7 +403,7 @@ function ReadTabContent({
                 </View>
               </View>
 
-              <PrimaryButton label="Marcar Série Concluída" onPress={onMarkSetDone} />
+              <PrimaryButton label="Marcar Serie Concluida" onPress={onMarkSetDone} />
             </View>
           ) : null}
 
@@ -397,7 +416,7 @@ function ReadTabContent({
           ) : null}
 
           {activeSession.phase === 'done' ? (
-            <PrimaryButton label="Finalizar e Salvar Sessão" onPress={onFinishAndSave} />
+            <PrimaryButton label="Finalizar e Salvar Sessao" onPress={onFinishAndSave} />
           ) : null}
         </>
       )}
@@ -419,130 +438,120 @@ function parseOptionalDecimal(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    padding: 14,
-    gap: 10,
-  },
-  segmentRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  pickerWrap: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
-  },
-  readWrap: {
-    gap: 10,
-  },
-  coachBox: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 12,
-    backgroundColor: '#f8fafc',
-    padding: 12,
-    gap: 6,
-  },
-  coachTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  coachText: {
-    fontSize: 14,
-    color: '#1e293b',
-    lineHeight: 21,
-  },
-  helper: {
-    fontSize: 13,
-    color: '#4b5563',
-  },
-  setEditor: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    padding: 12,
-    gap: 10,
-    backgroundColor: '#fff',
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  half: {
-    flex: 1,
-  },
-  restBox: {
-    borderWidth: 1,
-    borderColor: '#0ea5e9',
-    backgroundColor: '#f0f9ff',
-    borderRadius: 12,
-    padding: 12,
-    gap: 8,
-    alignItems: 'center',
-  },
-  restLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0c4a6e',
-  },
-  restTime: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#075985',
-  },
-  listenStub: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 12,
-    backgroundColor: '#f8fafc',
-    padding: 12,
-    gap: 6,
-  },
-  listenTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  timelineBox: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 10,
-    backgroundColor: '#ffffff',
-    padding: 10,
-    gap: 6,
-    maxHeight: 260,
-  },
-  timelineTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#374151',
-  },
-  timelineText: {
-    fontFamily: 'monospace',
-    fontSize: 11,
-    color: '#1f2937',
-  },
-  status: {
-    fontSize: 13,
-    color: '#0f766e',
-    fontWeight: '600',
-  },
-});
+function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      gap: 10,
+    },
+    label: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textMuted,
+    },
+    pickerWrap: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      backgroundColor: colors.inputBg,
+      overflow: 'hidden',
+    },
+    rowWrap: {
+      flexDirection: 'row',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+    rowTwo: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    half: {
+      flex: 1,
+    },
+    readWrap: {
+      gap: 10,
+    },
+    coachBox: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      backgroundColor: colors.surfaceAlt,
+      padding: 12,
+      gap: 6,
+    },
+    coachTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.accent,
+    },
+    coachText: {
+      fontSize: 14,
+      color: colors.text,
+      lineHeight: 21,
+    },
+    helper: {
+      fontSize: 13,
+      color: colors.textMuted,
+    },
+    setEditor: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      padding: 12,
+      gap: 10,
+      backgroundColor: colors.surfaceAlt,
+    },
+    sectionTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    restBox: {
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.accentSoft,
+      borderRadius: 12,
+      padding: 12,
+      gap: 8,
+      alignItems: 'center',
+    },
+    restLabel: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.accent,
+    },
+    restTime: {
+      fontSize: 28,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    timelineBox: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      backgroundColor: colors.surfaceAlt,
+      padding: 10,
+      gap: 6,
+      maxHeight: 260,
+    },
+    timelineTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    timelineText: {
+      fontFamily: 'monospace',
+      fontSize: 11,
+      color: colors.textMuted,
+    },
+    status: {
+      fontSize: 13,
+      color: colors.accent,
+      fontWeight: '600',
+    },
+  });
+}

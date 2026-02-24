@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 
 import { ScreenShell } from '@/src/components/ScreenShell';
@@ -6,6 +6,7 @@ import { FormField } from '@/src/components/ui/FormField';
 import { PrimaryButton } from '@/src/components/ui/PrimaryButton';
 import { makeId } from '@/src/lib/id';
 import { useAppStore } from '@/src/state/AppStore';
+import { useAppTheme } from '@/src/theme/useAppTheme';
 import type { ExerciseSet, WorkoutExercise, WorkoutPlan } from '@/src/types/models';
 
 type ExerciseSetDraft = ExerciseSet & { tagsJsonText: string };
@@ -14,6 +15,8 @@ type WorkoutPlanDraft = Omit<WorkoutPlan, 'exercises'> & { exercises: WorkoutExe
 
 export default function PlansScreen() {
   const { data, isReady, upsertWorkoutPlan, deleteWorkoutPlan } = useAppStore();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [draft, setDraft] = useState<WorkoutPlanDraft | null>(null);
   const [status, setStatus] = useState<string>('');
@@ -517,12 +520,13 @@ function parseOptionalDecimal(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
+  return StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: colors.border,
     padding: 14,
     gap: 10,
   },
@@ -542,13 +546,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: colors.text,
     marginTop: 4,
   },
   sectionSubtitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1f2937',
+    color: colors.text,
   },
   chipsWrap: {
     flexDirection: 'row',
@@ -560,17 +564,17 @@ const styles = StyleSheet.create({
   },
   helper: {
     fontSize: 13,
-    color: '#4b5563',
+    color: colors.textMuted,
   },
   editor: {
     gap: 10,
   },
   exerciseCard: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: colors.border,
     borderRadius: 12,
     padding: 12,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.surfaceAlt,
     gap: 10,
   },
   exerciseHeader: {
@@ -582,13 +586,13 @@ const styles = StyleSheet.create({
   exerciseTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1f2937',
+    color: colors.text,
   },
   setCard: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: colors.border,
     borderRadius: 10,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     padding: 10,
     gap: 8,
   },
@@ -601,11 +605,12 @@ const styles = StyleSheet.create({
   setTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#374151',
+    color: colors.textMuted,
   },
   status: {
     fontSize: 13,
-    color: '#0f766e',
+    color: colors.accent,
     fontWeight: '600',
   },
 });
+}

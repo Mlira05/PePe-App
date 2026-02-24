@@ -1,5 +1,6 @@
 export type ExperienceLevel = 'iniciante' | 'intermediario' | 'avancado';
 export type SedentaryLevel = 'baixo' | 'medio' | 'alto';
+export type ColorMode = 'dark' | 'light';
 
 export interface Profile {
   name: string;
@@ -74,11 +75,16 @@ export interface ImportRecord {
   metadataJson?: Record<string, string | number | boolean>;
 }
 
+export interface AppSettings {
+  colorMode: ColorMode;
+}
+
 export interface AppData {
   profile: Profile;
   workoutPlans: WorkoutPlan[];
   sessions: WorkoutSession[];
   imports: ImportRecord[];
+  settings: AppSettings;
 }
 
 export function createDefaultProfile(): Profile {
@@ -96,6 +102,9 @@ export function createDefaultAppData(): AppData {
     workoutPlans: [],
     sessions: [],
     imports: [],
+    settings: {
+      colorMode: 'dark',
+    },
   };
 }
 

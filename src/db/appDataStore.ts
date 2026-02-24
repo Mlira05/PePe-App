@@ -66,5 +66,9 @@ function sanitizeAppData(input: Partial<AppData> | null | undefined): AppData {
     workoutPlans: Array.isArray(input?.workoutPlans) ? input.workoutPlans : [],
     sessions: Array.isArray(input?.sessions) ? input.sessions : [],
     imports: Array.isArray(input?.imports) ? input.imports : [],
+    settings: {
+      ...base.settings,
+      ...(input?.settings ?? {}),
+    },
   };
 }

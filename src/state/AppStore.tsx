@@ -13,6 +13,7 @@ import { createDemoSeedData } from '@/src/lib/seedData';
 import {
   createDefaultAppData,
   type AppData,
+  type AppSettings,
   type ImportRecord,
   type Profile,
   type WorkoutSession,
@@ -32,6 +33,7 @@ interface AppStoreValue {
   addImportRecord: (record: ImportRecord) => Promise<void>;
   addSession: (session: WorkoutSession) => Promise<void>;
   seedDemoData: () => Promise<void>;
+  saveSettings: (settings: AppSettings) => Promise<void>;
   reload: () => Promise<void>;
 }
 
@@ -137,6 +139,11 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
       },
       seedDemoData: async () => {
         const nextData = createDemoSeedData(data);
+        setData(nextData);
+        await saveAppData(nextData);
+      },
+      saveSettings: async (settings) => {
+        const nextData = { ...data, settings };
         setData(nextData);
         await saveAppData(nextData);
       },

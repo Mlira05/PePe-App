@@ -1,23 +1,39 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
+import { Pressable, View } from 'react-native';
+
+import { useAppTheme } from '@/src/theme/useAppTheme';
 
 export default function TabLayout() {
+  const router = useRouter();
+  const { colors } = useAppTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: true,
-        tabBarActiveTintColor: '#0f766e',
-        headerStyle: { backgroundColor: '#f7f8f4' },
-        headerTitleStyle: { color: '#1f2937' },
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.tabInactive,
+        tabBarStyle: {
+          backgroundColor: colors.tabBg,
+          borderTopColor: colors.border,
+        },
+        sceneStyle: { backgroundColor: colors.background },
+        headerStyle: { backgroundColor: colors.background },
+        headerTintColor: colors.text,
+        headerTitleStyle: { color: colors.text },
+        headerRight: () => (
+          <View style={{ flexDirection: 'row', gap: 12, marginRight: 6 }}>
+            <Pressable onPress={() => router.push('/profile')}>
+              <FontAwesome size={20} name="user-circle-o" color={colors.accent} />
+            </Pressable>
+            <Pressable onPress={() => router.push('/settings' as never)}>
+              <FontAwesome size={20} name="cog" color={colors.accent} />
+            </Pressable>
+          </View>
+        ),
       }}
     >
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Perfil',
-          tabBarIcon: ({ color }) => <FontAwesome size={20} name="user" color={color} />,
-        }}
-      />
       <Tabs.Screen
         name="plans"
         options={{
@@ -35,17 +51,18 @@ export default function TabLayout() {
       <Tabs.Screen
         name="runner"
         options={{
-          title: 'Sessão',
+          title: 'Sessao',
           tabBarIcon: ({ color }) => <FontAwesome size={20} name="play-circle" color={color} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: 'Histórico',
+          title: 'Analytics',
           tabBarIcon: ({ color }) => <FontAwesome size={20} name="bar-chart" color={color} />,
         }}
       />
+      <Tabs.Screen name="index" options={{ href: null }} />
     </Tabs>
   );
 }

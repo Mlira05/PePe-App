@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -9,10 +9,13 @@ import { PrimaryButton } from '@/src/components/ui/PrimaryButton';
 import { makeId } from '@/src/lib/id';
 import { parseWorkoutCsv, parseWorkoutXlsxBase64 } from '@/src/lib/imports';
 import { useAppStore } from '@/src/state/AppStore';
+import { useAppTheme } from '@/src/theme/useAppTheme';
 import type { ImportRecord } from '@/src/types/models';
 
 export default function ImportsScreen() {
   const { data, addImportRecord, importWorkoutPlans, seedDemoData } = useAppStore();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [googleSheetsUrl, setGoogleSheetsUrl] = useState('');
   const [status, setStatus] = useState('');
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -217,12 +220,13 @@ export default function ImportsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
+  return StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: colors.border,
     padding: 14,
     gap: 10,
   },
@@ -234,26 +238,26 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: colors.text,
   },
   helper: {
     fontSize: 13,
-    color: '#4b5563',
+    color: colors.textMuted,
     lineHeight: 19,
   },
   code: {
     fontFamily: 'monospace',
-    color: '#111827',
+    color: colors.accent,
   },
   status: {
     fontSize: 13,
-    color: '#0f766e',
+    color: colors.accent,
     fontWeight: '600',
   },
   warningBox: {
     borderWidth: 1,
-    borderColor: '#f59e0b',
-    backgroundColor: '#fffbeb',
+    borderColor: colors.warningBorder,
+    backgroundColor: colors.warningBg,
     borderRadius: 10,
     padding: 10,
     gap: 4,
@@ -261,18 +265,18 @@ const styles = StyleSheet.create({
   warningTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#92400e',
+    color: colors.warningText,
   },
   warningText: {
     fontSize: 12,
-    color: '#78350f',
+    color: colors.warningText,
   },
   importRow: {
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: colors.border,
     borderRadius: 10,
     padding: 10,
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.surfaceAlt,
   },
   importRowText: {
     gap: 2,
@@ -280,6 +284,7 @@ const styles = StyleSheet.create({
   importTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1f2937',
+    color: colors.text,
   },
 });
+}

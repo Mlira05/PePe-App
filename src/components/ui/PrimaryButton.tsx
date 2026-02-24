@@ -1,5 +1,7 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 
+import { useAppTheme } from '@/src/theme/useAppTheme';
+
 interface Props {
   label: string;
   onPress: () => void;
@@ -8,14 +10,21 @@ interface Props {
 }
 
 export function PrimaryButton({ label, onPress, disabled = false, variant = 'primary' }: Props) {
+  const { colors } = useAppTheme();
+
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       style={({ pressed }) => [
         styles.button,
+        { backgroundColor: colors.accent, borderColor: colors.accent },
         variant === 'secondary' && styles.secondary,
         variant === 'danger' && styles.danger,
+        variant === 'secondary'
+          ? { backgroundColor: colors.surfaceAlt, borderColor: colors.border }
+          : null,
+        variant === 'danger' ? { backgroundColor: colors.danger, borderColor: colors.danger } : null,
         pressed && !disabled ? styles.pressed : null,
         disabled ? styles.disabled : null,
       ]}
@@ -23,8 +32,10 @@ export function PrimaryButton({ label, onPress, disabled = false, variant = 'pri
       <Text
         style={[
           styles.label,
+          { color: colors.accentText },
           variant === 'secondary' ? styles.altLabel : null,
           variant === 'danger' ? styles.dangerLabel : null,
+          variant === 'secondary' ? { color: colors.text } : null,
         ]}
       >
         {label}
@@ -40,17 +51,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0f766e',
     borderWidth: 1,
-    borderColor: '#0f766e',
   },
   secondary: {
-    backgroundColor: '#ffffff',
-    borderColor: '#cbd5e1',
   },
   danger: {
-    backgroundColor: '#b91c1c',
-    borderColor: '#b91c1c',
   },
   pressed: {
     opacity: 0.85,
@@ -59,12 +64,10 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   label: {
-    color: '#ffffff',
     fontWeight: '700',
     fontSize: 14,
   },
   altLabel: {
-    color: '#111827',
   },
   dangerLabel: {
     color: '#ffffff',
