@@ -59,6 +59,10 @@ export async function saveAppData(data: AppData): Promise<void> {
 function sanitizeAppData(input: Partial<AppData> | null | undefined): AppData {
   const base = createDefaultAppData();
   return {
+    appDataVersion:
+      typeof input?.appDataVersion === 'number' && Number.isFinite(input.appDataVersion)
+        ? input.appDataVersion
+        : base.appDataVersion,
     profile: {
       ...base.profile,
       ...(input?.profile ?? {}),
@@ -66,9 +70,34 @@ function sanitizeAppData(input: Partial<AppData> | null | undefined): AppData {
     workoutPlans: Array.isArray(input?.workoutPlans) ? input.workoutPlans : [],
     sessions: Array.isArray(input?.sessions) ? input.sessions : [],
     imports: Array.isArray(input?.imports) ? input.imports : [],
+    sessionDraft: input?.sessionDraft ?? undefined,
     settings: {
       ...base.settings,
       ...(input?.settings ?? {}),
+      timer: {
+        ...base.settings.timer,
+        ...(input?.settings as Partial<AppData['settings']> | undefined)?.timer,
+      },
+      quickAdjust: {
+        ...base.settings.quickAdjust,
+        ...(input?.settings as Partial<AppData['settings']> | undefined)?.quickAdjust,
+      },
+      session: {
+        ...base.settings.session,
+        ...(input?.settings as Partial<AppData['settings']> | undefined)?.session,
+      },
+      coachTimelineFlags: {
+        ...base.settings.coachTimelineFlags,
+        ...(input?.settings as Partial<AppData['settings']> | undefined)?.coachTimelineFlags,
+      },
+      privacy: {
+        ...base.settings.privacy,
+        ...(input?.settings as Partial<AppData['settings']> | undefined)?.privacy,
+      },
+      featureFlags: {
+        ...base.settings.featureFlags,
+        ...(input?.settings as Partial<AppData['settings']> | undefined)?.featureFlags,
+      },
     },
   };
 }

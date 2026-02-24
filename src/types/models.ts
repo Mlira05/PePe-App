@@ -1,6 +1,28 @@
 export type ExperienceLevel = 'iniciante' | 'intermediario' | 'avancado';
 export type SedentaryLevel = 'baixo' | 'medio' | 'alto';
 export type ColorMode = 'dark' | 'light';
+export type SetType = 'warmup' | 'working' | 'drop' | 'failure';
+export type MuscleGroup =
+  | 'chest'
+  | 'back'
+  | 'legs'
+  | 'shoulders'
+  | 'biceps'
+  | 'triceps'
+  | 'glutes'
+  | 'core'
+  | 'full_body'
+  | 'other';
+export type EquipmentType =
+  | 'barbell'
+  | 'dumbbell'
+  | 'machine'
+  | 'cable'
+  | 'bodyweight'
+  | 'kettlebell'
+  | 'band'
+  | 'other';
+export type ExerciseKind = 'compound' | 'isolation' | 'other';
 
 export interface Profile {
   name: string;
@@ -18,14 +40,29 @@ export interface ExerciseSet {
   targetReps: number;
   targetWeightKg?: number;
   restSeconds: number;
+  setType?: SetType;
+  dropSetGroupId?: string;
+  rpe?: number;
+  rir?: number;
+  tempo?: string;
   notes?: string;
   tagsJson?: Record<string, string | number | boolean>;
+}
+
+export interface ExerciseMetadata {
+  primaryMuscleGroup?: MuscleGroup;
+  secondaryMuscleGroups?: MuscleGroup[];
+  equipment?: EquipmentType;
+  type?: ExerciseKind;
 }
 
 export interface WorkoutExercise {
   id: string;
   order: number;
   name: string;
+  catalogExerciseId?: string;
+  isFavorite?: boolean;
+  metadata?: ExerciseMetadata;
   notes?: string;
   supersetGroupId?: string;
   sets: ExerciseSet[];
@@ -45,11 +82,40 @@ export interface SessionSetLog {
   exerciseName: string;
   setId: string;
   setOrder: number;
+  setType?: SetType;
   targetReps: number;
   targetWeightKg?: number;
+  targetRpe?: number;
+  targetRir?: number;
+  targetTempo?: string;
   actualReps?: number;
   actualWeightKg?: number;
+  actualRpe?: number;
+  actualRir?: number;
+  actualTempo?: string;
+  notes?: string;
   completedAt?: string;
+}
+
+export type SessionDraftPhase = 'set_ready' | 'set_active' | 'after_set' | 'rest' | 'done';
+
+export interface SessionDraft {
+  id: string;
+  workoutPlanId: string;
+  workoutPlanLabel: string;
+  startedAt: string;
+  stepIndex: number;
+  phase: SessionDraftPhase;
+  restRemaining: number;
+  actualRepsInput: string;
+  actualWeightInput: string;
+  actualRpeInput: string;
+  actualRirInput: string;
+  actualTempoInput: string;
+  notesInput: string;
+  setLogs: SessionSetLog[];
+  voiceMuted: boolean;
+  updatedAt: string;
 }
 
 export interface WorkoutSession {
@@ -77,13 +143,45 @@ export interface ImportRecord {
 
 export interface AppSettings {
   colorMode: ColorMode;
+  timer: {
+    autoStartRestAfterSet: boolean;
+    warn10Seconds: boolean;
+    soundsEnabled: boolean;
+    hapticsEnabled: boolean;
+  };
+  quickAdjust: {
+    weightStepSmallKg: number;
+    weightStepLargeKg: number;
+    repStep: number;
+  };
+  session: {
+    showAdvancedSetFields: boolean;
+  };
+  coachTimelineFlags: {
+    enabledV2Templates: boolean;
+    enabledSpeechEngineAbstraction: boolean;
+    encouragementCadence: 'per_set' | 'per_exercise';
+    deterministicVariation: boolean;
+  };
+  privacy: {
+    disclaimerAcceptedAt?: string;
+    exportPrivacyWarningSeenAt?: string;
+  };
+  featureFlags: {
+    improvedImportMapping: boolean;
+    speechEngineAbstraction: boolean;
+    coachTimelineTemplates: boolean;
+    scheduleCalendar: boolean;
+  };
 }
 
 export interface AppData {
+  appDataVersion: number;
   profile: Profile;
   workoutPlans: WorkoutPlan[];
   sessions: WorkoutSession[];
   imports: ImportRecord[];
+  sessionDraft?: SessionDraft;
   settings: AppSettings;
 }
 
@@ -98,12 +196,41 @@ export function createDefaultProfile(): Profile {
 
 export function createDefaultAppData(): AppData {
   return {
+    appDataVersion: 2,
     profile: createDefaultProfile(),
     workoutPlans: [],
     sessions: [],
     imports: [],
+    sessionDraft: undefined,
     settings: {
       colorMode: 'dark',
+      timer: {
+        autoStartRestAfterSet: true,
+        warn10Seconds: true,
+        soundsEnabled: false,
+        hapticsEnabled: true,
+      },
+      quickAdjust: {
+        weightStepSmallKg: 2.5,
+        weightStepLargeKg: 5,
+        repStep: 1,
+      },
+      session: {
+        showAdvancedSetFields: false,
+      },
+      coachTimelineFlags: {
+        enabledV2Templates: false,
+        enabledSpeechEngineAbstraction: false,
+        encouragementCadence: 'per_set',
+        deterministicVariation: true,
+      },
+      privacy: {},
+      featureFlags: {
+        improvedImportMapping: false,
+        speechEngineAbstraction: false,
+        coachTimelineTemplates: false,
+        scheduleCalendar: false,
+      },
     },
   };
 }

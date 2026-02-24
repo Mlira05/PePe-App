@@ -57,21 +57,21 @@ export function buildCoachTimeline(steps: RunnerStep[]): CoachTimeline {
     const estimatedSetSec = estimateSetDurationSec(step);
     const isLastStep = idx >= steps.length - 1;
 
-    if (!isLastStep && step.restSeconds > 0) {
+    if (!isLastStep && step.restAfterSeconds > 0) {
       const restStartOffset = offsetSec + estimatedSetSec;
-      cues.push(cue(restStartOffset, 'rest_start', idx, `Descanso por ${step.restSeconds} segundos.`));
-      if (step.restSeconds > 10) {
+      cues.push(cue(restStartOffset, 'rest_start', idx, `Descanso por ${step.restAfterSeconds} segundos.`));
+      if (step.restAfterSeconds > 10) {
         cues.push(
           cue(
-            restStartOffset + step.restSeconds - 10,
+            restStartOffset + step.restAfterSeconds - 10,
             'rest_10_left',
             idx,
             'Faltam 10 segundos para a próxima série.',
           ),
         );
       }
-      cues.push(cue(restStartOffset + step.restSeconds, 'next_set', idx, 'Próxima série. Prepare-se.'));
-      offsetSec = restStartOffset + step.restSeconds;
+      cues.push(cue(restStartOffset + step.restAfterSeconds, 'next_set', idx, 'Próxima série. Prepare-se.'));
+      offsetSec = restStartOffset + step.restAfterSeconds;
     } else {
       offsetSec += estimatedSetSec;
     }
