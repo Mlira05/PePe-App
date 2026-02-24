@@ -9,11 +9,18 @@ import {
 } from 'react';
 
 import { loadAppData, saveAppData } from '@/src/db/appDataStore';
+import {
+  findCatalogExerciseByName,
+  mergeMetadata,
+} from '@/src/lib/exerciseCatalog';
 import { createDemoSeedData } from '@/src/lib/seedData';
+import { makeId } from '@/src/lib/id';
 import {
   createDefaultAppData,
   type AppData,
   type AppSettings,
+  type ExerciseCatalogItem,
+  type ExerciseMetadata,
   type ImportRecord,
   type Profile,
   type SessionDraft,
@@ -35,6 +42,12 @@ interface AppStoreValue {
   addSession: (session: WorkoutSession) => Promise<void>;
   saveSessionDraft: (draft: SessionDraft) => Promise<void>;
   clearSessionDraft: () => Promise<void>;
+  ensureCatalogExercise: (input: {
+    name: string;
+    metadata?: ExerciseMetadata;
+    preferredCatalogExerciseId?: string;
+  }) => Promise<ExerciseCatalogItem>;
+  toggleCatalogFavorite: (catalogExerciseId: string) => Promise<void>;
   seedDemoData: () => Promise<void>;
   saveSettings: (settings: AppSettings) => Promise<void>;
   reload: () => Promise<void>;
@@ -147,6 +160,73 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
       },
       clearSessionDraft: async () => {
         const nextData = { ...data, sessionDraft: undefined };
+        setData(nextData);
+        await saveAppData(nextData);
+      },
+      ensureCatalogExercise: async ({ name, metadata, preferredCatalogExerciseId }) => {
+        const trimmedName = name.trim();
+        if (!trimmedName) {
+          throw new Error('Nome do exercicio e obrigatorio');
+        }
+
+        const now = new Date().toISOString();
+        let catalog = [...data.exerciseCatalog];
+        let resolved =
+          (preferredCatalogExerciseId
+            ? catalog.find((item) => item.id === preferredCatalogExerciseId)
+            : undefined) ?? findCatalogExerciseByName(catalog, trimmedName);
+
+        if (resolved) {
+          const updatedResolved = {
+            ...resolved,
+            name: trimmedName,
+            metadata: mergeMetadata(resolved.metadata, metadata),
+            usageCount: (resolved.usageCount ?? 0) + 1,
+            lastUsedAt: now,
+            updatedAt: now,
+          };
+          resolved = updatedResolved;
+          catalog = catalog.map((item) => (item.id === updatedResolved.id ? updatedResolved : item));
+        } else {
+          resolved = {
+            id: makeId('catalog'),
+            name: trimmedName,
+            metadata,
+            isFavorite: false,
+            isUserCreated: true,
+            usageCount: 1,
+            lastUsedAt: now,
+            createdAt: now,
+            updatedAt: now,
+          };
+          catalog = [...catalog, resolved];
+        }
+
+        catalog.sort((a, b) => {
+          const favoriteDelta = Number(b.isFavorite) - Number(a.isFavorite);
+          if (favoriteDelta !== 0) {
+            return favoriteDelta;
+          }
+          return a.name.localeCompare(b.name, 'pt-BR');
+        });
+
+        const nextData = { ...data, exerciseCatalog: catalog };
+        setData(nextData);
+        await saveAppData(nextData);
+        return resolved;
+      },
+      toggleCatalogFavorite: async (catalogExerciseId) => {
+        const catalog = data.exerciseCatalog.map((item) =>
+          item.id === catalogExerciseId ? { ...item, isFavorite: !item.isFavorite } : item,
+        );
+        catalog.sort((a, b) => {
+          const favoriteDelta = Number(b.isFavorite) - Number(a.isFavorite);
+          if (favoriteDelta !== 0) {
+            return favoriteDelta;
+          }
+          return a.name.localeCompare(b.name, 'pt-BR');
+        });
+        const nextData = { ...data, exerciseCatalog: catalog };
         setData(nextData);
         await saveAppData(nextData);
       },

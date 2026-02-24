@@ -67,6 +67,7 @@ function sanitizeAppData(input: Partial<AppData> | null | undefined): AppData {
       ...base.profile,
       ...(input?.profile ?? {}),
     },
+    exerciseCatalog: Array.isArray(input?.exerciseCatalog) ? input.exerciseCatalog : base.exerciseCatalog,
     workoutPlans: Array.isArray(input?.workoutPlans) ? input.workoutPlans : [],
     sessions: Array.isArray(input?.sessions) ? input.sessions : [],
     imports: Array.isArray(input?.imports) ? input.imports : [],

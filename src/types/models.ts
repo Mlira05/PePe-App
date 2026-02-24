@@ -1,3 +1,5 @@
+import { createSeedExerciseCatalog } from '@/src/lib/exerciseCatalog';
+
 export type ExperienceLevel = 'iniciante' | 'intermediario' | 'avancado';
 export type SedentaryLevel = 'baixo' | 'medio' | 'alto';
 export type ColorMode = 'dark' | 'light';
@@ -55,6 +57,18 @@ export interface ExerciseMetadata {
   secondaryMuscleGroups?: MuscleGroup[];
   equipment?: EquipmentType;
   type?: ExerciseKind;
+}
+
+export interface ExerciseCatalogItem {
+  id: string;
+  name: string;
+  metadata?: ExerciseMetadata;
+  isFavorite: boolean;
+  isUserCreated: boolean;
+  usageCount: number;
+  lastUsedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WorkoutExercise {
@@ -181,6 +195,7 @@ export interface AppSettings {
 export interface AppData {
   appDataVersion: number;
   profile: Profile;
+  exerciseCatalog: ExerciseCatalogItem[];
   workoutPlans: WorkoutPlan[];
   sessions: WorkoutSession[];
   imports: ImportRecord[];
@@ -199,8 +214,9 @@ export function createDefaultProfile(): Profile {
 
 export function createDefaultAppData(): AppData {
   return {
-    appDataVersion: 2,
+    appDataVersion: 3,
     profile: createDefaultProfile(),
+    exerciseCatalog: createSeedExerciseCatalog(),
     workoutPlans: [],
     sessions: [],
     imports: [],
