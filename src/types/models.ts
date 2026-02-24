@@ -81,16 +81,23 @@ export interface AppData {
   imports: ImportRecord[];
 }
 
-export const DEFAULT_PROFILE: Profile = {
-  name: '',
-  experienceLevel: 'iniciante',
-  sedentaryLevel: 'medio',
-  goals: '',
-};
+export function createDefaultProfile(): Profile {
+  return {
+    name: '',
+    experienceLevel: 'iniciante',
+    sedentaryLevel: 'medio',
+    goals: '',
+  };
+}
 
-export const DEFAULT_APP_DATA: AppData = {
-  profile: DEFAULT_PROFILE,
-  workoutPlans: [],
-  sessions: [],
-  imports: [],
-};
+export function createDefaultAppData(): AppData {
+  return {
+    profile: createDefaultProfile(),
+    workoutPlans: [],
+    sessions: [],
+    imports: [],
+  };
+}
+
+export const DEFAULT_PROFILE: Profile = createDefaultProfile();
+export const DEFAULT_APP_DATA: AppData = createDefaultAppData();
