@@ -20,7 +20,15 @@ export function PrimaryButton({ label, onPress, disabled = false, variant = 'pri
         disabled ? styles.disabled : null,
       ]}
     >
-      <Text style={[styles.label, variant !== 'primary' && styles.altLabel]}>{label}</Text>
+      <Text
+        style={[
+          styles.label,
+          variant === 'secondary' ? styles.altLabel : null,
+          variant === 'danger' ? styles.dangerLabel : null,
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -57,5 +65,8 @@ const styles = StyleSheet.create({
   },
   altLabel: {
     color: '#111827',
+  },
+  dangerLabel: {
+    color: '#ffffff',
   },
 });

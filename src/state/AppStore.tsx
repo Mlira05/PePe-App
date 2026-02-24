@@ -9,7 +9,12 @@ import {
 } from 'react';
 
 import { loadAppData, saveAppData } from '@/src/db/appDataStore';
-import { createDefaultAppData, type AppData, type Profile } from '@/src/types/models';
+import {
+  createDefaultAppData,
+  type AppData,
+  type Profile,
+  type WorkoutPlan,
+} from '@/src/types/models';
 
 interface AppStoreValue {
   data: AppData;
@@ -18,6 +23,8 @@ interface AppStoreValue {
   setData: (next: AppData) => void;
   patchData: (patch: Partial<AppData>) => void;
   saveProfile: (profile: Profile) => Promise<void>;
+  upsertWorkoutPlan: (plan: WorkoutPlan) => Promise<void>;
+  deleteWorkoutPlan: (planId: string) => Promise<void>;
   reload: () => Promise<void>;
 }
 
@@ -83,6 +90,23 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
       saveProfile: async (profile) => {
         setData((prev) => ({ ...prev, profile }));
         await saveAppData({ ...data, profile });
+      },
+      upsertWorkoutPlan: async (plan) => {
+        const existingIndex = data.workoutPlans.findIndex((item) => item.id === plan.id);
+        const nextPlans = [...data.workoutPlans];
+        if (existingIndex >= 0) {
+          nextPlans[existingIndex] = plan;
+        } else {
+          nextPlans.push(plan);
+        }
+        nextPlans.sort((a, b) => a.dayLabel.localeCompare(b.dayLabel, 'pt-BR'));
+        setData((prev) => ({ ...prev, workoutPlans: nextPlans }));
+        await saveAppData({ ...data, workoutPlans: nextPlans });
+      },
+      deleteWorkoutPlan: async (planId) => {
+        const nextPlans = data.workoutPlans.filter((item) => item.id !== planId);
+        setData((prev) => ({ ...prev, workoutPlans: nextPlans }));
+        await saveAppData({ ...data, workoutPlans: nextPlans });
       },
       reload: async () => {
         const loaded = await loadAppData();
