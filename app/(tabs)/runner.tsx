@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import * as Speech from 'expo-speech';
 
 import { ScreenShell } from '@/src/components/ScreenShell';
 import { FormField } from '@/src/components/ui/FormField';
 import { PrimaryButton } from '@/src/components/ui/PrimaryButton';
+import { buildCoachTimeline } from '@/src/lib/coachTimeline';
 import { makeId } from '@/src/lib/id';
 import { flattenWorkoutPlan, getReadCoachText } from '@/src/lib/workoutRuntime';
 import { useAppStore } from '@/src/state/AppStore';
@@ -33,6 +35,9 @@ export default function RunnerScreen() {
   const [actualRepsInput, setActualRepsInput] = useState('');
   const [actualWeightInput, setActualWeightInput] = useState('');
   const [status, setStatus] = useState('');
+  const [listenStatus, setListenStatus] = useState('');
+  const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
+  const listenTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
     if (!selectedPlanId && data.workoutPlans[0]) {
@@ -42,9 +47,16 @@ export default function RunnerScreen() {
 
   const selectedPlan = data.workoutPlans.find((plan) => plan.id === selectedPlanId) ?? null;
   const steps = useMemo(() => (selectedPlan ? flattenWorkoutPlan(selectedPlan) : []), [selectedPlan]);
+  const coachTimeline = useMemo(() => buildCoachTimeline(steps), [steps]);
   const currentStep = activeSession ? steps[activeSession.stepIndex] : undefined;
   const activePhase = activeSession?.phase;
   const activeStepIndex = activeSession?.stepIndex;
+
+  useEffect(() => {
+    return () => {
+      stopTimelinePlayback();
+    };
+  }, []);
 
   useEffect(() => {
     if (!activeSession || activeSession.phase !== 'rest') {
@@ -181,6 +193,44 @@ export default function RunnerScreen() {
     setStatus('Sessão salva no histórico.');
   }
 
+  function startTimelinePlayback() {
+    if (!selectedPlan) {
+      setListenStatus('Selecione um plano para gerar a timeline.');
+      return;
+    }
+    if (coachTimeline.cues.length === 0) {
+      setListenStatus('O plano não possui séries para gerar cues.');
+      return;
+    }
+    stopTimelinePlayback();
+    setListenStatus('Coach TTS iniciado.');
+    setIsTimelinePlaying(true);
+
+    coachTimeline.cues.forEach((cue) => {
+      const timeout = setTimeout(() => {
+        Speech.speak(cue.textPtBr, {
+          language: 'pt-BR',
+          rate: 0.95,
+          pitch: 1.0,
+        });
+      }, cue.offsetSec * 1000);
+      listenTimeoutsRef.current.push(timeout);
+    });
+
+    const doneTimeout = setTimeout(() => {
+      setIsTimelinePlaying(false);
+      setListenStatus('Timeline concluída.');
+    }, (coachTimeline.estimatedTotalSec + 2) * 1000);
+    listenTimeoutsRef.current.push(doneTimeout);
+  }
+
+  function stopTimelinePlayback() {
+    listenTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+    listenTimeoutsRef.current = [];
+    Speech.stop();
+    setIsTimelinePlaying(false);
+  }
+
   const coachText =
     activeSession && currentStep
       ? getReadCoachText(
@@ -232,11 +282,27 @@ export default function RunnerScreen() {
           />
         ) : (
           <View style={styles.listenStub}>
-            <Text style={styles.listenTitle}>LISTEN (Milestone 5)</Text>
+            <Text style={styles.listenTitle}>LISTEN (Coach Timeline + TTS)</Text>
             <Text style={styles.helper}>
-              Próximo passo: gerar timeline JSON do coach e falar cues por TTS (início do exercício, série,
-              descanso, 10 segundos restantes, próxima série, lembrete de carga, incentivo ocasional).
+              Cues por evento (sem contagem de reps): início do exercício, série, descanso, 10s restantes,
+              próxima série, lembrete de carga e incentivo ocasional.
             </Text>
+            <View style={styles.row}>
+              <PrimaryButton
+                label={isTimelinePlaying ? 'Tocando...' : 'Iniciar Voz'}
+                onPress={startTimelinePlayback}
+                disabled={isTimelinePlaying}
+              />
+              <PrimaryButton label="Parar Voz" onPress={stopTimelinePlayback} variant="secondary" />
+            </View>
+            {listenStatus ? <Text style={styles.status}>{listenStatus}</Text> : null}
+            <Text style={styles.helper}>
+              Timeline estimada: {coachTimeline.estimatedTotalSec}s • Cues: {coachTimeline.cues.length}
+            </Text>
+            <View style={styles.timelineBox}>
+              <Text style={styles.timelineTitle}>coachTimeline.json (prévia)</Text>
+              <Text style={styles.timelineText}>{JSON.stringify(coachTimeline, null, 2)}</Text>
+            </View>
           </View>
         )}
 
@@ -454,6 +520,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#111827',
+  },
+  timelineBox: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 10,
+    backgroundColor: '#ffffff',
+    padding: 10,
+    gap: 6,
+    maxHeight: 260,
+  },
+  timelineTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  timelineText: {
+    fontFamily: 'monospace',
+    fontSize: 11,
+    color: '#1f2937',
   },
   status: {
     fontSize: 13,
