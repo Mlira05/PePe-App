@@ -7,9 +7,16 @@ interface Props {
   onPress: () => void;
   disabled?: boolean;
   variant?: 'primary' | 'secondary' | 'danger';
+  size?: 'compact' | 'default' | 'large';
 }
 
-export function PrimaryButton({ label, onPress, disabled = false, variant = 'primary' }: Props) {
+export function PrimaryButton({
+  label,
+  onPress,
+  disabled = false,
+  variant = 'primary',
+  size = 'default',
+}: Props) {
   const { colors } = useAppTheme();
 
   return (
@@ -18,6 +25,8 @@ export function PrimaryButton({ label, onPress, disabled = false, variant = 'pri
       disabled={disabled}
       style={({ pressed }) => [
         styles.button,
+        size === 'compact' ? styles.compactButton : null,
+        size === 'large' ? styles.largeButton : null,
         { backgroundColor: colors.accent, borderColor: colors.accent },
         variant === 'secondary' && styles.secondary,
         variant === 'danger' && styles.danger,
@@ -32,6 +41,8 @@ export function PrimaryButton({ label, onPress, disabled = false, variant = 'pri
       <Text
         style={[
           styles.label,
+          size === 'compact' ? styles.compactLabel : null,
+          size === 'large' ? styles.largeLabel : null,
           { color: colors.accentText },
           variant === 'secondary' ? styles.altLabel : null,
           variant === 'danger' ? styles.dangerLabel : null,
@@ -53,6 +64,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
   },
+  compactButton: {
+    minHeight: 34,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  largeButton: {
+    minHeight: 52,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
   secondary: {
   },
   danger: {
@@ -66,6 +87,12 @@ const styles = StyleSheet.create({
   label: {
     fontWeight: '700',
     fontSize: 14,
+  },
+  compactLabel: {
+    fontSize: 12,
+  },
+  largeLabel: {
+    fontSize: 16,
   },
   altLabel: {
   },

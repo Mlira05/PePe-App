@@ -39,6 +39,7 @@ interface AppStoreValue {
   deleteWorkoutPlan: (planId: string) => Promise<void>;
   importWorkoutPlans: (plans: WorkoutPlan[], importRecord: ImportRecord) => Promise<void>;
   addImportRecord: (record: ImportRecord) => Promise<void>;
+  clearImportHistory: () => Promise<void>;
   addSession: (session: WorkoutSession) => Promise<void>;
   saveSessionDraft: (draft: SessionDraft) => Promise<void>;
   clearSessionDraft: () => Promise<void>;
@@ -144,6 +145,14 @@ export function AppStoreProvider({ children }: PropsWithChildren) {
       },
       addImportRecord: async (record) => {
         const nextData = { ...data, imports: [record, ...data.imports] };
+        setData(nextData);
+        await saveAppData(nextData);
+      },
+      clearImportHistory: async () => {
+        if (data.imports.length === 0) {
+          return;
+        }
+        const nextData = { ...data, imports: [] };
         setData(nextData);
         await saveAppData(nextData);
       },

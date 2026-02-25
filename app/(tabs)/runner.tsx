@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import * as Speech from 'expo-speech';
 
@@ -24,7 +24,7 @@ import type { SessionDraft, SessionSetLog, WorkoutSession } from '@/src/types/mo
 type ActiveSession = SessionDraft;
 
 export default function RunnerScreen() {
-  const { data, addSession, patchData, clearSessionDraft, saveSettings } = useAppStore();
+  const { data, addSession, clearSessionDraft, saveSessionDraft, saveSettings } = useAppStore();
   const { colors } = useAppTheme();
   const { t, lang } = useI18n();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -39,6 +39,7 @@ export default function RunnerScreen() {
   const scheduledRestAlertsRef = useRef<ScheduledRestAlerts | null>(null);
   const restCueMarksRef = useRef<{ warned10: boolean; ended: boolean }>({ warned10: false, ended: false });
   const restNotificationsKeyRef = useRef<string | null>(null);
+  const lastPersistedDraftKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!selectedPlanId && data.workoutPlans[0]) {
@@ -77,16 +78,24 @@ export default function RunnerScreen() {
 
   useEffect(() => {
     if (!activeSession) {
-      patchData({ sessionDraft: undefined });
+      if (lastPersistedDraftKeyRef.current === null) {
+        return;
+      }
+      lastPersistedDraftKeyRef.current = null;
+      void clearSessionDraft();
       return;
     }
-    patchData({
-      sessionDraft: {
-        ...activeSession,
-        updatedAt: new Date().toISOString(),
-      },
-    });
-  }, [activeSession, patchData]);
+    const draftToPersist = {
+      ...activeSession,
+      updatedAt: activeSession.updatedAt ?? new Date().toISOString(),
+    };
+    const persistKey = JSON.stringify(draftToPersist);
+    if (lastPersistedDraftKeyRef.current === persistKey) {
+      return;
+    }
+    lastPersistedDraftKeyRef.current = persistKey;
+    void saveSessionDraft(draftToPersist);
+  }, [activeSession, clearSessionDraft, saveSessionDraft]);
 
   useEffect(() => {
     if (currentPhase !== 'rest') {
@@ -518,17 +527,19 @@ export default function RunnerScreen() {
             onPress={toggleVoiceMute}
             variant={isVoiceMuted ? 'secondary' : 'primary'}
             disabled={!activeSession}
+            size="compact"
           />
           <PrimaryButton
             label={showTimelinePreview ? t('runner.hideTimeline') : t('runner.showTimeline')}
             onPress={() => setShowTimelinePreview((prev) => !prev)}
             variant="secondary"
+            size="compact"
           />
         </View>
 
         <View style={styles.rowWrap}>
           <PrimaryButton
-            label={`Auto rest: ${data.settings.timer.autoStartRestAfterSet ? 'ON' : 'OFF'}`}
+            label={`${lang === 'en' ? 'Auto rest' : 'Auto descanso'}: ${data.settings.timer.autoStartRestAfterSet ? 'ON' : 'OFF'}`}
             onPress={() =>
               void saveSettings({
                 ...data.settings,
@@ -539,9 +550,10 @@ export default function RunnerScreen() {
               })
             }
             variant="secondary"
+            size="compact"
           />
           <PrimaryButton
-            label={`Advanced: ${data.settings.session.showAdvancedSetFields ? 'ON' : 'OFF'}`}
+            label={`${lang === 'en' ? 'Advanced' : 'Avancado'}: ${data.settings.session.showAdvancedSetFields ? 'ON' : 'OFF'}`}
             onPress={() =>
               void saveSettings({
                 ...data.settings,
@@ -552,6 +564,7 @@ export default function RunnerScreen() {
               })
             }
             variant="secondary"
+            size="compact"
           />
         </View>
 
@@ -568,8 +581,17 @@ export default function RunnerScreen() {
               {data.sessionDraft.workoutPlanLabel} • {new Date(data.sessionDraft.startedAt).toLocaleString('pt-BR')}
             </Text>
             <View style={styles.rowWrap}>
-              <PrimaryButton label={lang === 'en' ? 'Resume Draft' : 'Retomar Rascunho'} onPress={resumeDraft} />
-              <PrimaryButton label={lang === 'en' ? 'Discard' : 'Descartar'} onPress={() => void discardDraft()} variant="danger" />
+              <PrimaryButton
+                label={lang === 'en' ? 'Resume Draft' : 'Retomar Rascunho'}
+                onPress={resumeDraft}
+                size="compact"
+              />
+              <PrimaryButton
+                label={lang === 'en' ? 'Discard' : 'Descartar'}
+                onPress={() => void discardDraft()}
+                variant="danger"
+                size="compact"
+              />
             </View>
           </View>
         ) : null}
@@ -671,6 +693,11 @@ function SessionContent({
   onNudgeWeight,
   onNudgeReps,
 }: SessionContentProps) {
+  const [showSetEditor, setShowSetEditor] = useState(false);
+  useEffect(() => {
+    setShowSetEditor(false);
+  }, [session?.stepIndex, session?.phase]);
+
   const text = {
     coach: lang === 'en' ? 'Coach' : 'Coach (pt-BR)',
     startSession: lang === 'en' ? 'Start Session' : 'Iniciar Sessao',
@@ -679,13 +706,16 @@ function SessionContent({
     loggedSets: lang === 'en' ? 'Logged sets' : 'Series registradas',
     lastTime: lang === 'en' ? 'Last time' : 'Ultima vez',
     executionTimer: lang === 'en' ? 'Execution timer' : 'Timer de execucao',
-    startSet: 'Start Set',
-    completeSet: 'Complete Set',
-    startRest: 'Start Rest',
-    nextExercise: 'Next Exercise',
+    startSet: lang === 'en' ? 'Start Set' : 'Iniciar Serie',
+    completeSet: lang === 'en' ? 'Complete Set' : 'Concluir Serie',
+    startRest: lang === 'en' ? 'Start Rest' : 'Iniciar Descanso',
+    nextExercise: lang === 'en' ? 'Next Exercise' : 'Proximo Exercicio',
     rest: lang === 'en' ? 'Rest' : 'Descanso',
     finishSave: lang === 'en' ? 'Finish & Save Session' : 'Finalizar e Salvar Sessao',
     discardDraft: lang === 'en' ? 'Discard Draft' : 'Descartar Rascunho',
+    editValues: lang === 'en' ? 'Edit reps/weight' : 'Editar reps/peso',
+    hideValues: lang === 'en' ? 'Hide reps/weight' : 'Ocultar reps/peso',
+    changeExercise: lang === 'en' ? 'Change exercise' : 'Trocar exercicio',
   } as const;
 
   return (
@@ -709,6 +739,9 @@ function SessionContent({
           {step ? (
             <View style={styles.setEditor}>
               <Text style={styles.sectionTitle}>{step.exerciseName}</Text>
+              <Pressable onPress={onNextExercise}>
+                <Text style={styles.linkText}>{text.changeExercise}</Text>
+              </Pressable>
               <Text style={styles.helper}>
                 Serie {step.setOrder}/{step.exerciseSetCount} • Tipo {step.setType ?? 'working'} • Alvo{' '}
                 {step.targetReps}
@@ -730,20 +763,36 @@ function SessionContent({
               <View style={styles.rowWrap}>
                 {session.phase === 'set_ready' ? (
                   <>
-                    <PrimaryButton label={text.startSet} onPress={onStartSet} />
-                    <PrimaryButton label={text.nextExercise} onPress={onNextExercise} variant="secondary" />
+                    <PrimaryButton label={text.startSet} onPress={onStartSet} size="compact" />
+                    <PrimaryButton
+                      label={text.nextExercise}
+                      onPress={onNextExercise}
+                      variant="secondary"
+                      size="compact"
+                    />
                   </>
                 ) : null}
                 {session.phase === 'after_set' ? (
                   <>
-                    <PrimaryButton label={text.startRest} onPress={onStartRest} />
-                    <PrimaryButton label={text.nextExercise} onPress={onNextExercise} variant="secondary" />
+                    <PrimaryButton label={text.startRest} onPress={onStartRest} size="compact" />
+                    <PrimaryButton
+                      label={text.nextExercise}
+                      onPress={onNextExercise}
+                      variant="secondary"
+                      size="compact"
+                    />
                   </>
                 ) : null}
               </View>
 
               {(session.phase === 'set_active' || session.phase === 'after_set') && (
                 <>
+                  <Pressable onPress={() => setShowSetEditor((prev) => !prev)}>
+                    <Text style={styles.linkText}>{showSetEditor ? text.hideValues : text.editValues}</Text>
+                  </Pressable>
+
+                  {showSetEditor ? (
+                    <>
                   <View style={styles.rowTwo}>
                     <View style={styles.half}>
                       <FormField
@@ -755,7 +804,7 @@ function SessionContent({
                     </View>
                     <View style={styles.half}>
                       <FormField
-                        label="Peso (kg)"
+                        label={lang === 'en' ? 'Weight (kg)' : 'Peso (kg)'}
                         value={session.actualWeightInput}
                         onChangeText={onChangeWeight}
                         keyboardType="numeric"
@@ -764,11 +813,35 @@ function SessionContent({
                   </View>
 
                   <View style={styles.rowWrap}>
-                    <PrimaryButton label={`+${quickAdjust.weightStepSmallKg}kg`} onPress={() => onNudgeWeight(quickAdjust.weightStepSmallKg)} />
-                    <PrimaryButton label={`+${quickAdjust.weightStepLargeKg}kg`} onPress={() => onNudgeWeight(quickAdjust.weightStepLargeKg)} variant="secondary" />
-                    <PrimaryButton label={`-${quickAdjust.weightStepSmallKg}kg`} onPress={() => onNudgeWeight(-quickAdjust.weightStepSmallKg)} variant="secondary" />
-                    <PrimaryButton label={`+${quickAdjust.repStep} rep`} onPress={() => onNudgeReps(quickAdjust.repStep)} variant="secondary" />
-                    <PrimaryButton label={`-${quickAdjust.repStep} rep`} onPress={() => onNudgeReps(-quickAdjust.repStep)} variant="secondary" />
+                    <PrimaryButton
+                      label={`+${quickAdjust.weightStepSmallKg}kg`}
+                      onPress={() => onNudgeWeight(quickAdjust.weightStepSmallKg)}
+                      size="compact"
+                    />
+                    <PrimaryButton
+                      label={`+${quickAdjust.weightStepLargeKg}kg`}
+                      onPress={() => onNudgeWeight(quickAdjust.weightStepLargeKg)}
+                      variant="secondary"
+                      size="compact"
+                    />
+                    <PrimaryButton
+                      label={`-${quickAdjust.weightStepSmallKg}kg`}
+                      onPress={() => onNudgeWeight(-quickAdjust.weightStepSmallKg)}
+                      variant="secondary"
+                      size="compact"
+                    />
+                    <PrimaryButton
+                      label={`+${quickAdjust.repStep} rep`}
+                      onPress={() => onNudgeReps(quickAdjust.repStep)}
+                      variant="secondary"
+                      size="compact"
+                    />
+                    <PrimaryButton
+                      label={`-${quickAdjust.repStep} rep`}
+                      onPress={() => onNudgeReps(-quickAdjust.repStep)}
+                      variant="secondary"
+                      size="compact"
+                    />
                   </View>
 
                   {showAdvanced ? (
@@ -776,7 +849,7 @@ function SessionContent({
                       <View style={styles.rowTwo}>
                         <View style={styles.half}>
                           <FormField
-                            label="RPE (opcional)"
+                            label={lang === 'en' ? 'RPE (optional)' : 'RPE (opcional)'}
                             value={session.actualRpeInput}
                             onChangeText={onChangeRpe}
                             keyboardType="numeric"
@@ -784,7 +857,7 @@ function SessionContent({
                         </View>
                         <View style={styles.half}>
                           <FormField
-                            label="RIR (opcional)"
+                            label={lang === 'en' ? 'RIR (optional)' : 'RIR (opcional)'}
                             value={session.actualRirInput}
                             onChangeText={onChangeRir}
                             keyboardType="numeric"
@@ -792,22 +865,24 @@ function SessionContent({
                         </View>
                       </View>
                       <FormField
-                        label="Tempo (opcional)"
+                        label={lang === 'en' ? 'Tempo (optional)' : 'Tempo (opcional)'}
                         value={session.actualTempoInput}
                         onChangeText={onChangeTempo}
-                        placeholder="Ex.: 3010"
+                        placeholder={lang === 'en' ? 'Ex.: 3010' : 'Ex.: 3010'}
                       />
                       <FormField
-                        label="Notas da serie"
+                        label={lang === 'en' ? 'Set notes' : 'Notas da serie'}
                         value={session.notesInput}
                         onChangeText={onChangeNotes}
-                        placeholder="Observacoes rapidas"
+                        placeholder={lang === 'en' ? 'Quick notes' : 'Observacoes rapidas'}
                       />
                     </View>
                   ) : null}
+                    </>
+                  ) : null}
 
                   {session.phase === 'set_active' ? (
-                    <PrimaryButton label={text.completeSet} onPress={onCompleteSet} />
+                    <PrimaryButton label={text.completeSet} onPress={onCompleteSet} size="large" />
                   ) : null}
                 </>
               )}
@@ -819,13 +894,13 @@ function SessionContent({
               <Text style={styles.restLabel}>{text.rest}</Text>
               <Text style={styles.restTime}>{session.restRemaining}s</Text>
               <View style={styles.rowWrap}>
-                <PrimaryButton label="+10s" onPress={() => onAdjustRest(10)} variant="secondary" />
-                <PrimaryButton label="+30s" onPress={() => onAdjustRest(30)} variant="secondary" />
-                <PrimaryButton label="-10s" onPress={() => onAdjustRest(-10)} variant="secondary" />
+                <PrimaryButton label="+10s" onPress={() => onAdjustRest(10)} variant="secondary" size="compact" />
+                <PrimaryButton label="+30s" onPress={() => onAdjustRest(30)} variant="secondary" size="compact" />
+                <PrimaryButton label="-10s" onPress={() => onAdjustRest(-10)} variant="secondary" size="compact" />
               </View>
               <View style={styles.rowWrap}>
-                <PrimaryButton label={text.startSet} onPress={onNextExercise} />
-                <PrimaryButton label={text.nextExercise} onPress={onNextExercise} variant="secondary" />
+                <PrimaryButton label={text.startSet} onPress={onNextExercise} size="compact" />
+                <PrimaryButton label={text.nextExercise} onPress={onNextExercise} variant="secondary" size="compact" />
               </View>
             </View>
           ) : null}
@@ -833,7 +908,7 @@ function SessionContent({
           {session.phase === 'done' ? (
             <View style={styles.rowWrap}>
               <PrimaryButton label={text.finishSave} onPress={onFinish} />
-              <PrimaryButton label={text.discardDraft} onPress={() => void onDiscardDraft()} variant="danger" />
+              <PrimaryButton label={text.discardDraft} onPress={() => void onDiscardDraft()} variant="danger" size="compact" />
             </View>
           ) : null}
         </>
@@ -914,8 +989,8 @@ function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
       borderRadius: 12,
       borderWidth: 1,
       borderColor: colors.border,
-      padding: 14,
-      gap: 10,
+      padding: 12,
+      gap: 8,
     },
     label: {
       fontSize: 13,
@@ -931,7 +1006,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
     },
     rowWrap: {
       flexDirection: 'row',
-      gap: 8,
+      gap: 6,
       flexWrap: 'wrap',
     },
     rowTwo: {
@@ -962,8 +1037,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
       color: colors.text,
       lineHeight: 21,
     },
+    linkText: {
+      fontSize: 12,
+      color: colors.accent,
+      textDecorationLine: 'underline',
+    },
     helper: {
-      fontSize: 13,
+      fontSize: 12,
       color: colors.textMuted,
     },
     setEditor: {
@@ -971,7 +1051,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
       borderColor: colors.border,
       borderRadius: 12,
       padding: 12,
-      gap: 10,
+      gap: 8,
       backgroundColor: colors.surfaceAlt,
     },
     sectionTitle: {

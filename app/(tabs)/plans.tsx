@@ -180,13 +180,11 @@ export default function PlansScreen() {
         setDraft(null);
         return;
       }
-      if (!draft || draft.id !== source.id) {
-        setDraft(toDraft(source));
-      }
-    } else if (draft) {
-      setDraft(null);
+      setDraft((prev) => (prev && prev.id === source.id ? prev : toDraft(source)));
+      return;
     }
-  }, [data.workoutPlans, draft, selectedPlanId]);
+    setDraft((prev) => (prev ? null : prev));
+  }, [data.workoutPlans, selectedPlanId]);
 
   const recentCatalog = useMemo(
     () =>
