@@ -5,6 +5,7 @@ import { Picker } from '@react-native-picker/picker';
 import { ScreenShell } from '@/src/components/ScreenShell';
 import { FormField } from '@/src/components/ui/FormField';
 import { PrimaryButton } from '@/src/components/ui/PrimaryButton';
+import { useI18n } from '@/src/i18n/useI18n';
 import { useAppStore } from '@/src/state/AppStore';
 import { useAppTheme } from '@/src/theme/useAppTheme';
 import type { ExperienceLevel, Profile, SedentaryLevel } from '@/src/types/models';
@@ -17,7 +18,65 @@ interface Props {
 export function ProfileEditorPage({ mode, onContinue }: Props) {
   const { data, isReady, isSaving, saveProfile } = useAppStore();
   const { colors } = useAppTheme();
+  const { isEnglish } = useI18n();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const copy = useMemo(
+    () =>
+      isEnglish
+        ? {
+            onboardingTitle: 'Initial Registration',
+            profileTitle: 'Profile',
+            onboardingSubtitle: 'Fill your local profile to start the app (offline)',
+            profileSubtitle: 'Local user data (no login)',
+            name: 'Name',
+            age: 'Age',
+            heightCm: 'Height (cm)',
+            weightKg: 'Weight (kg)',
+            experienceLevel: 'Experience level',
+            sedentaryLevel: 'Sedentary level',
+            goals: 'Goals',
+            beginner: 'Beginner',
+            intermediate: 'Intermediate',
+            advanced: 'Advanced',
+            low: 'Low',
+            medium: 'Medium',
+            high: 'High',
+            saveEnter: 'Save and Enter',
+            saveProfile: 'Save Profile',
+            reload: 'Reload',
+            loading: 'Loading local data...',
+            saving: 'Saving...',
+            ready: 'Ready to edit.',
+            savedAt: (time: string) => `Saved locally at ${time}`,
+          }
+        : {
+            onboardingTitle: 'Cadastro Inicial',
+            profileTitle: 'Perfil',
+            onboardingSubtitle: 'Preencha seu cadastro local para iniciar o app (offline)',
+            profileSubtitle: 'Dados locais do usuario (sem login)',
+            name: 'Nome',
+            age: 'Idade',
+            heightCm: 'Altura (cm)',
+            weightKg: 'Peso (kg)',
+            experienceLevel: 'Nivel de experiencia',
+            sedentaryLevel: 'Nivel de sedentarismo',
+            goals: 'Objetivos',
+            beginner: 'Iniciante',
+            intermediate: 'Intermediario',
+            advanced: 'Avancado',
+            low: 'Baixo',
+            medium: 'Medio',
+            high: 'Alto',
+            saveEnter: 'Salvar e Entrar',
+            saveProfile: 'Salvar Perfil',
+            reload: 'Recarregar',
+            loading: 'Carregando dados locais...',
+            saving: 'Salvando...',
+            ready: 'Pronto para editar.',
+            savedAt: (time: string) => `Salvo localmente as ${time}`,
+          },
+    [isEnglish],
+  );
   const [form, setForm] = useState({
     name: '',
     age: '',
@@ -52,7 +111,7 @@ export function ProfileEditorPage({ mode, onContinue }: Props) {
       goals: form.goals.trim(),
     };
     await saveProfile(nextProfile);
-    setSaveMessage(`Salvo localmente as ${new Date().toLocaleTimeString('pt-BR')}`);
+    setSaveMessage(copy.savedAt(new Date().toLocaleTimeString(isEnglish ? 'en-US' : 'pt-BR')));
     if (mode === 'onboarding' && nextProfile.name && onContinue) {
       onContinue();
     }
@@ -60,16 +119,16 @@ export function ProfileEditorPage({ mode, onContinue }: Props) {
 
   return (
     <ScreenShell
-      title={mode === 'onboarding' ? 'Cadastro Inicial' : 'Perfil'}
+      title={mode === 'onboarding' ? copy.onboardingTitle : copy.profileTitle}
       subtitle={
         mode === 'onboarding'
-          ? 'Preencha seu cadastro local para iniciar o app (offline)'
-          : 'Dados locais do usuario (sem login)'
+          ? copy.onboardingSubtitle
+          : copy.profileSubtitle
       }
     >
       <View style={styles.card}>
         <FormField
-          label="Nome"
+          label={copy.name}
           value={form.name}
           onChangeText={(name) => setForm((prev) => ({ ...prev, name }))}
           placeholder="Ex.: Maria"
@@ -77,7 +136,7 @@ export function ProfileEditorPage({ mode, onContinue }: Props) {
         <View style={styles.row}>
           <View style={styles.half}>
             <FormField
-              label="Idade"
+              label={copy.age}
               value={form.age}
               onChangeText={(age) => setForm((prev) => ({ ...prev, age }))}
               keyboardType="numeric"
@@ -86,7 +145,7 @@ export function ProfileEditorPage({ mode, onContinue }: Props) {
           </View>
           <View style={styles.half}>
             <FormField
-              label="Altura (cm)"
+              label={copy.heightCm}
               value={form.heightCm}
               onChangeText={(heightCm) => setForm((prev) => ({ ...prev, heightCm }))}
               keyboardType="numeric"
@@ -96,14 +155,14 @@ export function ProfileEditorPage({ mode, onContinue }: Props) {
         </View>
 
         <FormField
-          label="Peso (kg)"
+          label={copy.weightKg}
           value={form.weightKg}
           onChangeText={(weightKg) => setForm((prev) => ({ ...prev, weightKg }))}
           keyboardType="numeric"
           placeholder="78.5"
         />
 
-        <Text style={styles.label}>Nivel de experiencia</Text>
+        <Text style={styles.label}>{copy.experienceLevel}</Text>
         <View style={styles.pickerWrap}>
           <Picker
             selectedValue={form.experienceLevel}
@@ -113,13 +172,13 @@ export function ProfileEditorPage({ mode, onContinue }: Props) {
               setForm((prev) => ({ ...prev, experienceLevel: experienceLevel as ExperienceLevel }))
             }
           >
-            <Picker.Item label="Iniciante" value="iniciante" />
-            <Picker.Item label="Intermediario" value="intermediario" />
-            <Picker.Item label="Avancado" value="avancado" />
+            <Picker.Item label={copy.beginner} value="iniciante" />
+            <Picker.Item label={copy.intermediate} value="intermediario" />
+            <Picker.Item label={copy.advanced} value="avancado" />
           </Picker>
         </View>
 
-        <Text style={styles.label}>Nivel de sedentarismo</Text>
+        <Text style={styles.label}>{copy.sedentaryLevel}</Text>
         <View style={styles.pickerWrap}>
           <Picker
             selectedValue={form.sedentaryLevel}
@@ -129,14 +188,14 @@ export function ProfileEditorPage({ mode, onContinue }: Props) {
               setForm((prev) => ({ ...prev, sedentaryLevel: sedentaryLevel as SedentaryLevel }))
             }
           >
-            <Picker.Item label="Baixo" value="baixo" />
-            <Picker.Item label="Medio" value="medio" />
-            <Picker.Item label="Alto" value="alto" />
+            <Picker.Item label={copy.low} value="baixo" />
+            <Picker.Item label={copy.medium} value="medio" />
+            <Picker.Item label={copy.high} value="alto" />
           </Picker>
         </View>
 
         <FormField
-          label="Objetivos"
+          label={copy.goals}
           value={form.goals}
           onChangeText={(goals) => setForm((prev) => ({ ...prev, goals }))}
           placeholder="Ex.: Ganho de forca e consistencia 4x/semana"
@@ -145,13 +204,13 @@ export function ProfileEditorPage({ mode, onContinue }: Props) {
 
         <View style={styles.actionRow}>
           <PrimaryButton
-            label={mode === 'onboarding' ? 'Salvar e Entrar' : 'Salvar Perfil'}
+            label={mode === 'onboarding' ? copy.saveEnter : copy.saveProfile}
             onPress={handleSave}
             disabled={!isReady}
           />
           {mode === 'profile' ? (
             <PrimaryButton
-              label="Recarregar"
+              label={copy.reload}
               variant="secondary"
               onPress={() =>
                 setForm({
@@ -170,7 +229,7 @@ export function ProfileEditorPage({ mode, onContinue }: Props) {
         </View>
 
         <Text style={styles.helper}>
-          {!isReady ? 'Carregando dados locais...' : isSaving ? 'Salvando...' : 'Pronto para editar.'}
+          {!isReady ? copy.loading : isSaving ? copy.saving : copy.ready}
         </Text>
         {saveMessage ? <Text style={styles.saved}>{saveMessage}</Text> : null}
       </View>

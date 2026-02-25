@@ -13,6 +13,55 @@ export default function SettingsRoute() {
   const { colors, mode } = useAppTheme();
   const { t, isEnglish } = useI18n();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const copy = useMemo(
+    () =>
+      isEnglish
+        ? {
+            themeHelp: 'Current default: dark background with light purple accents. Switch to light if you prefer.',
+            sessionTitle: 'Session (real gym use)',
+            autoRest: 'Auto-start rest',
+            advancedFields: 'Advanced fields',
+            timerTitle: 'Timer / Alerts',
+            warning10: '10s warning',
+            notifSounds: 'Notification sounds',
+            haptics: 'Haptics',
+            timerHelp:
+              'Rest alerts use local notifications to continue in background (when allowed by the OS).',
+            quickAdjustTitle: 'Quick Adjustments',
+            quickAdjustHelp: 'Fast taps in the session runner for weight/reps (sweaty hands, less typing).',
+            smallWeight: 'Small weight (kg)',
+            largeWeight: 'Large weight (kg)',
+            repStep: 'Rep step',
+            privacyTitle: 'Privacy & Data (local-only)',
+            privacyHelp:
+              'This prototype stores data locally on the device (SQLite). Exports and backups contain workout and profile data. Do not share backup files unless you want to expose that data.',
+            on: 'ON',
+            off: 'OFF',
+          }
+        : {
+            themeHelp: 'Padrao atual: fundo escuro com roxo claro. Mude para claro se preferir.',
+            sessionTitle: 'Sessao (uso real na academia)',
+            autoRest: 'Auto-start rest',
+            advancedFields: 'Campos avancados',
+            timerTitle: 'Timer / Alertas',
+            warning10: 'Aviso 10s',
+            notifSounds: 'Sons notif.',
+            haptics: 'Haptics',
+            timerHelp:
+              'Alertas de descanso usam notificacoes locais para continuar mesmo em background (quando permitido pelo SO).',
+            quickAdjustTitle: 'Ajustes rapidos',
+            quickAdjustHelp: 'Toques rapidos no runner para peso/reps (mao suada, pouca digitacao).',
+            smallWeight: 'Peso pequeno (kg)',
+            largeWeight: 'Peso grande (kg)',
+            repStep: 'Rep step',
+            privacyTitle: 'Privacidade & Dados (local-only)',
+            privacyHelp:
+              'Este prototipo salva dados localmente no aparelho (SQLite). Exportacoes e backups conterao seus dados de treino e perfil. Nao compartilhe arquivos de backup se nao quiser expor esses dados.',
+            on: 'ON',
+            off: 'OFF',
+          },
+    [isEnglish],
+  );
 
   const settings = data.settings;
 
@@ -37,7 +86,7 @@ export default function SettingsRoute() {
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>{t('settings.theme')}</Text>
-        <Text style={styles.helper}>Padrao atual: fundo escuro com roxo claro. Mude para claro se preferir.</Text>
+        <Text style={styles.helper}>{copy.themeHelp}</Text>
         <View style={styles.row}>
           <PrimaryButton
             label={t('settings.darkDefault')}
@@ -53,10 +102,10 @@ export default function SettingsRoute() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Sessao (uso real na academia)</Text>
+        <Text style={styles.sectionTitle}>{copy.sessionTitle}</Text>
         <View style={styles.row}>
           <PrimaryButton
-            label={`Auto-start rest: ${settings.timer.autoStartRestAfterSet ? 'ON' : 'OFF'}`}
+            label={`${copy.autoRest}: ${settings.timer.autoStartRestAfterSet ? copy.on : copy.off}`}
             onPress={() =>
               void saveSettings({
                 ...settings,
@@ -69,7 +118,7 @@ export default function SettingsRoute() {
             variant="secondary"
           />
           <PrimaryButton
-            label={`Campos avancados: ${settings.session.showAdvancedSetFields ? 'ON' : 'OFF'}`}
+            label={`${copy.advancedFields}: ${settings.session.showAdvancedSetFields ? copy.on : copy.off}`}
             onPress={() =>
               void saveSettings({
                 ...settings,
@@ -85,10 +134,10 @@ export default function SettingsRoute() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Timer / Alertas</Text>
+        <Text style={styles.sectionTitle}>{copy.timerTitle}</Text>
         <View style={styles.row}>
           <PrimaryButton
-            label={`Aviso 10s: ${settings.timer.warn10Seconds ? 'ON' : 'OFF'}`}
+            label={`${copy.warning10}: ${settings.timer.warn10Seconds ? copy.on : copy.off}`}
             onPress={() =>
               void saveSettings({
                 ...settings,
@@ -98,7 +147,7 @@ export default function SettingsRoute() {
             variant="secondary"
           />
           <PrimaryButton
-            label={`Sons notif.: ${settings.timer.soundsEnabled ? 'ON' : 'OFF'}`}
+            label={`${copy.notifSounds}: ${settings.timer.soundsEnabled ? copy.on : copy.off}`}
             onPress={() =>
               void saveSettings({
                 ...settings,
@@ -108,7 +157,7 @@ export default function SettingsRoute() {
             variant="secondary"
           />
           <PrimaryButton
-            label={`Haptics: ${settings.timer.hapticsEnabled ? 'ON' : 'OFF'}`}
+            label={`${copy.haptics}: ${settings.timer.hapticsEnabled ? copy.on : copy.off}`}
             onPress={() =>
               void saveSettings({
                 ...settings,
@@ -118,18 +167,16 @@ export default function SettingsRoute() {
             variant="secondary"
           />
         </View>
-        <Text style={styles.helper}>
-          Alertas de descanso usam notificacoes locais para continuar mesmo em background (quando permitido pelo SO).
-        </Text>
+        <Text style={styles.helper}>{copy.timerHelp}</Text>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Ajustes rapidos</Text>
-        <Text style={styles.helper}>Toques rapidos no runner para peso/reps (mao suada, pouca digitacao).</Text>
+        <Text style={styles.sectionTitle}>{copy.quickAdjustTitle}</Text>
+        <Text style={styles.helper}>{copy.quickAdjustHelp}</Text>
         <View style={styles.row}>
           <View style={styles.inputCol}>
             <FormField
-              label="Peso pequeno (kg)"
+              label={copy.smallWeight}
               value={String(settings.quickAdjust.weightStepSmallKg)}
               onChangeText={(value) =>
                 void saveSettings({
@@ -145,7 +192,7 @@ export default function SettingsRoute() {
           </View>
           <View style={styles.inputCol}>
             <FormField
-              label="Peso grande (kg)"
+              label={copy.largeWeight}
               value={String(settings.quickAdjust.weightStepLargeKg)}
               onChangeText={(value) =>
                 void saveSettings({
@@ -161,7 +208,7 @@ export default function SettingsRoute() {
           </View>
           <View style={styles.inputCol}>
             <FormField
-              label="Rep step"
+              label={copy.repStep}
               value={String(settings.quickAdjust.repStep)}
               onChangeText={(value) =>
                 void saveSettings({
@@ -179,11 +226,8 @@ export default function SettingsRoute() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Privacidade & Dados (local-only)</Text>
-        <Text style={styles.helper}>
-          Este prototipo salva dados localmente no aparelho (SQLite). Exportacoes e backups conterao seus dados de treino e perfil.
-          Nao compartilhe arquivos de backup se nao quiser expor esses dados.
-        </Text>
+        <Text style={styles.sectionTitle}>{copy.privacyTitle}</Text>
+        <Text style={styles.helper}>{copy.privacyHelp}</Text>
       </View>
     </ScreenShell>
   );

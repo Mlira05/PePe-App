@@ -1,25 +1,146 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 
 import { ScreenShell } from '@/src/components/ScreenShell';
 import { FormField } from '@/src/components/ui/FormField';
 import { PrimaryButton } from '@/src/components/ui/PrimaryButton';
+import { useI18n } from '@/src/i18n/useI18n';
 import { makeId } from '@/src/lib/id';
 import { useAppStore } from '@/src/state/AppStore';
 import { useAppTheme } from '@/src/theme/useAppTheme';
-import type { ExerciseCatalogItem, ExerciseSet, SetType, WorkoutExercise, WorkoutPlan } from '@/src/types/models';
+import type { ExerciseCatalogItem, ExerciseSet, WorkoutExercise, WorkoutPlan } from '@/src/types/models';
 
 type ExerciseSetDraft = ExerciseSet & { tagsJsonText: string };
 type WorkoutExerciseDraft = Omit<WorkoutExercise, 'sets'> & { sets: ExerciseSetDraft[] };
 type WorkoutPlanDraft = Omit<WorkoutPlan, 'exercises'> & { exercises: WorkoutExerciseDraft[] };
 type CatalogFilter = 'all' | 'favorites' | 'recent';
 
-const SET_TYPE_OPTIONS: { value: SetType; label: string }[] = [
-  { value: 'warmup', label: 'Warmup' },
-  { value: 'working', label: 'Work' },
-  { value: 'drop', label: 'Drop' },
-  { value: 'failure', label: 'Failure' },
-];
+function getPlansCopy(isEnglish: boolean) {
+  return isEnglish
+    ? {
+        title: 'Workouts',
+        subtitle: 'Plan editor with local exercise catalog',
+        newPlan: 'New Plan',
+        duplicatePlan: 'Duplicate Plan',
+        savePlan: 'Save Plan',
+        delete: 'Delete',
+        deletePlanTitle: 'Delete plan',
+        deletePlanMessage: 'Remove the selected plan?',
+        cancel: 'Cancel',
+        savedPlans: 'Saved plans',
+        selectPlan: 'Select a plan',
+        noPlans: 'No saved plans yet.',
+        createToStart: 'Create or select a plan to start editing.',
+        planEditor: 'Plan editor',
+        dayLabel: 'Day label',
+        planNotes: 'Plan notes',
+        openCatalog: 'Check from catalog',
+        closeCatalog: 'Close catalog',
+        addExerciseManual: 'Add Exercise (manual)',
+        noExercises: 'No exercises yet. Add one from catalog or manually.',
+        catalogTitle: 'Exercise Catalog',
+        catalogSearch: 'Search exercise',
+        catalogSearchPlaceholder: 'Bench press, squat, row...',
+        all: 'All',
+        favorites: 'Favorites',
+        recents: 'Recents',
+        createCustom: 'Create Custom',
+        results: 'Results',
+        noCatalogResults: 'No exercises found.',
+        add: 'Add',
+        star: 'Star',
+        fav: 'Fav',
+        exercisesList: 'Exercises',
+        remove: 'Remove',
+        duplicate: 'Duplicate',
+        up: 'Up',
+        down: 'Down',
+        exerciseName: 'Exercise name',
+        supersetGroup: 'Superset group (optional)',
+        exerciseNotes: 'Exercise notes',
+        sets: 'Sets',
+        removeSet: 'Remove Set',
+        repsTarget: 'Target reps',
+        weightTargetKg: 'Target weight (kg)',
+        restSeconds: 'Rest (s)',
+        setNotes: 'Set notes',
+        addSet: 'Add Set',
+        advanced: 'Advanced',
+        hideAdvanced: 'Hide Advanced',
+        duplicateSet: 'Duplicate Set',
+        dropGroup: 'Drop group',
+        tempo: 'Tempo',
+        createdDraft: 'New plan created (draft).',
+        duplicatedDraft: 'Plan copy created (draft).',
+        savedLocal: 'Plan saved locally.',
+        removedPlan: 'Plan removed.',
+        addedExercise: (name: string) => `Exercise added: ${name}`,
+        createdCustomExerciseError: 'Error creating custom exercise',
+        addExerciseError: 'Error adding exercise',
+      }
+    : {
+        title: 'Treinos',
+        subtitle: 'Editor de planos com catalogo local',
+        newPlan: 'Novo Plano',
+        duplicatePlan: 'Duplicar Plano',
+        savePlan: 'Salvar Plano',
+        delete: 'Excluir',
+        deletePlanTitle: 'Excluir plano',
+        deletePlanMessage: 'Remover o plano selecionado?',
+        cancel: 'Cancelar',
+        savedPlans: 'Planos salvos',
+        selectPlan: 'Selecione um plano',
+        noPlans: 'Nenhum plano salvo ainda.',
+        createToStart: 'Crie ou selecione um plano para começar a editar.',
+        planEditor: 'Editor do plano',
+        dayLabel: 'Rotulo do dia',
+        planNotes: 'Notas do plano',
+        openCatalog: 'Buscar no catalogo',
+        closeCatalog: 'Fechar catalogo',
+        addExerciseManual: 'Adicionar Exercício (manual)',
+        noExercises: 'Sem exercicios. Adicione pelo catalogo ou manualmente.',
+        catalogTitle: 'Catalogo de Exercicios',
+        catalogSearch: 'Buscar exercicio',
+        catalogSearchPlaceholder: 'Supino, agachamento, remada...',
+        all: 'Todos',
+        favorites: 'Favoritos',
+        recents: 'Recentes',
+        createCustom: 'Criar Custom',
+        results: 'Resultados',
+        noCatalogResults: 'Nenhum exercicio encontrado.',
+        add: 'Adicionar',
+        star: 'Star',
+        fav: 'Fav',
+        exercisesList: 'Exercicios',
+        remove: 'Remover',
+        duplicate: 'Duplicar',
+        up: 'Subir',
+        down: 'Descer',
+        exerciseName: 'Nome do exercicio',
+        supersetGroup: 'Grupo superset (opcional)',
+        exerciseNotes: 'Notas do exercicio',
+        sets: 'Series',
+        removeSet: 'Remover Serie',
+        repsTarget: 'Reps alvo',
+        weightTargetKg: 'Carga alvo (kg)',
+        restSeconds: 'Descanso (s)',
+        setNotes: 'Notas da serie',
+        addSet: 'Adicionar Serie',
+        advanced: 'Avancado',
+        hideAdvanced: 'Ocultar Avancado',
+        duplicateSet: 'Duplicar Serie',
+        dropGroup: 'Grupo drop',
+        tempo: 'Tempo',
+        createdDraft: 'Novo plano criado (rascunho).',
+        duplicatedDraft: 'Copia criada (rascunho).',
+        savedLocal: 'Plano salvo localmente.',
+        removedPlan: 'Plano removido.',
+        addedExercise: (name: string) => `Exercicio adicionado: ${name}`,
+        createdCustomExerciseError: 'Erro ao criar exercicio custom',
+        addExerciseError: 'Erro ao adicionar exercicio',
+      };
+}
 
 export default function PlansScreen() {
   const {
@@ -31,32 +152,39 @@ export default function PlansScreen() {
     toggleCatalogFavorite,
   } = useAppStore();
   const { colors } = useAppTheme();
+  const { isEnglish } = useI18n();
+  const copy = useMemo(() => getPlansCopy(isEnglish), [isEnglish]);
+  const setTypeOptions = useMemo(
+    () => [
+      { value: 'warmup' as const, label: isEnglish ? 'Warmup' : 'Aquecimento' },
+      { value: 'working' as const, label: isEnglish ? 'Work' : 'Trabalho' },
+      { value: 'drop' as const, label: isEnglish ? 'Drop' : 'Drop' },
+      { value: 'failure' as const, label: isEnglish ? 'Failure' : 'Falha' },
+    ],
+    [isEnglish],
+  );
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [draft, setDraft] = useState<WorkoutPlanDraft | null>(null);
   const [status, setStatus] = useState<string>('');
   const [catalogQuery, setCatalogQuery] = useState<string>('');
   const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>('all');
+  const [catalogVisible, setCatalogVisible] = useState(false);
   const [advancedSetIds, setAdvancedSetIds] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!selectedPlanId && data.workoutPlans.length > 0) {
-      const first = data.workoutPlans[0];
-      setSelectedPlanId(first.id);
-      setDraft(toDraft(first));
-      return;
-    }
-
     if (selectedPlanId) {
       const source = data.workoutPlans.find((plan) => plan.id === selectedPlanId);
       if (!source) {
-        setSelectedPlanId(data.workoutPlans[0]?.id ?? null);
-        setDraft(data.workoutPlans[0] ? toDraft(data.workoutPlans[0]) : null);
+        setSelectedPlanId(null);
+        setDraft(null);
         return;
       }
       if (!draft || draft.id !== source.id) {
         setDraft(toDraft(source));
       }
+    } else if (draft) {
+      setDraft(null);
     }
   }, [data.workoutPlans, draft, selectedPlanId]);
 
@@ -102,7 +230,7 @@ export default function PlansScreen() {
     };
     setSelectedPlanId(plan.id);
     setDraft(plan);
-    setStatus('Novo plano criado (rascunho).');
+    setStatus(copy.createdDraft);
   }
 
   function duplicateCurrentPlan() {
@@ -120,7 +248,7 @@ export default function PlansScreen() {
     };
     setSelectedPlanId(plan.id);
     setDraft(plan);
-    setStatus('Copia criada (rascunho).');
+    setStatus(copy.duplicatedDraft);
   }
 
   function selectPlan(plan: WorkoutPlan) {
@@ -178,9 +306,10 @@ export default function PlansScreen() {
         ],
         updatedAt: new Date().toISOString(),
       }));
-      setStatus(`Exercicio adicionado: ${resolved.name}`);
+      setCatalogVisible(false);
+      setStatus(copy.addedExercise(resolved.name));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Erro ao adicionar exercicio');
+      setStatus(error instanceof Error ? error.message : copy.addExerciseError);
     }
   }
 
@@ -194,7 +323,7 @@ export default function PlansScreen() {
       setCatalogQuery('');
       await addExerciseFromCatalog(resolved);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Erro ao criar exercicio custom');
+      setStatus(error instanceof Error ? error.message : copy.createdCustomExerciseError);
     }
   }
 
@@ -361,7 +490,7 @@ export default function PlansScreen() {
     try {
       const plan = fromDraft(draft);
       await upsertWorkoutPlan({ ...plan, updatedAt: new Date().toISOString() });
-      setStatus('Plano salvo localmente.');
+      setStatus(copy.savedLocal);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro ao salvar plano';
       setStatus(message);
@@ -379,34 +508,34 @@ export default function PlansScreen() {
       return;
     }
     await deleteWorkoutPlan(selectedPlanId);
-    setStatus('Plano removido.');
+    setStatus(copy.removedPlan);
     setSelectedPlanId(null);
     setDraft(null);
   }
 
   return (
-    <ScreenShell title="Treinos" subtitle="CRUD de planos e exercícios">
+    <ScreenShell title={copy.title} subtitle={copy.subtitle}>
       <View style={styles.card}>
         <View style={styles.row}>
-          <PrimaryButton label="Novo Plano" onPress={createPlan} disabled={!isReady} />
+          <PrimaryButton label={copy.newPlan} onPress={createPlan} disabled={!isReady} />
           <PrimaryButton
-            label="Duplicar Plano"
+            label={copy.duplicatePlan}
             onPress={duplicateCurrentPlan}
             disabled={!isReady || !draft}
             variant="secondary"
           />
           <PrimaryButton
-            label="Salvar Plano"
+            label={copy.savePlan}
             onPress={handleSaveDraft}
             disabled={!isReady || !draft}
             variant="secondary"
           />
           <PrimaryButton
-            label="Excluir"
+            label={copy.delete}
             onPress={() => {
-              Alert.alert('Excluir plano', 'Remover o plano selecionado?', [
-                { text: 'Cancelar', style: 'cancel' },
-                { text: 'Excluir', style: 'destructive', onPress: () => void handleDeleteSelected() },
+              Alert.alert(copy.deletePlanTitle, copy.deletePlanMessage, [
+                { text: copy.cancel, style: 'cancel' },
+                { text: copy.delete, style: 'destructive', onPress: () => void handleDeleteSelected() },
               ]);
             }}
             disabled={!isReady || !selectedPlanId}
@@ -414,69 +543,102 @@ export default function PlansScreen() {
           />
         </View>
 
-        <Text style={styles.sectionTitle}>Planos salvos</Text>
-        <View style={styles.chipsWrap}>
-          {data.workoutPlans.length === 0 ? (
-            <Text style={styles.helper}>Nenhum plano salvo ainda.</Text>
-          ) : (
-            data.workoutPlans.map((plan) => (
-              <View key={plan.id} style={styles.chip}>
-                <PrimaryButton
-                  label={plan.dayLabel}
-                  onPress={() => selectPlan(plan)}
-                  variant={selectedPlanId === plan.id ? 'primary' : 'secondary'}
-                />
-              </View>
-            ))
-          )}
+        <Text style={styles.sectionTitle}>{copy.savedPlans}</Text>
+        <View style={styles.pickerWrap}>
+          <Picker
+            selectedValue={selectedPlanId ?? ''}
+            style={{ color: colors.text }}
+            dropdownIconColor={colors.accent}
+            onValueChange={(value) => {
+              if (!value) {
+                setSelectedPlanId(null);
+                setDraft(null);
+                setStatus('');
+                return;
+              }
+              const plan = data.workoutPlans.find((item) => item.id === value);
+              if (plan) {
+                selectPlan(plan);
+              }
+            }}
+          >
+            <Picker.Item label={copy.selectPlan} value="" />
+            {data.workoutPlans.map((plan) => (
+              <Picker.Item key={plan.id} label={plan.dayLabel} value={plan.id} />
+            ))}
+          </Picker>
         </View>
+        {data.workoutPlans.length === 0 ? <Text style={styles.helper}>{copy.noPlans}</Text> : null}
 
         {!draft ? (
-          <Text style={styles.helper}>Crie um plano para começar a cadastrar exercícios e séries.</Text>
+          <Text style={styles.helper}>{copy.createToStart}</Text>
         ) : (
           <View style={styles.editor}>
-            <Text style={styles.sectionTitle}>Editor do plano</Text>
+            <Text style={styles.sectionTitle}>{copy.planEditor}</Text>
             <FormField
-              label="Rótulo do dia"
+              label={copy.dayLabel}
               value={draft.dayLabel}
               onChangeText={(dayLabel) => patchDraft((prev) => ({ ...prev, dayLabel }))}
               placeholder="Ex.: Segunda - Superior"
             />
             <FormField
-              label="Notas do plano"
+              label={copy.planNotes}
               value={draft.notes ?? ''}
               onChangeText={(notes) => patchDraft((prev) => ({ ...prev, notes }))}
               placeholder="Observações gerais"
               multiline
             />
 
-            <View style={styles.catalogCard}>
-              <Text style={styles.sectionSubtitle}>Catalogo local</Text>
+            <View style={styles.row}>
+              <PrimaryButton
+                label={copy.openCatalog}
+                onPress={() => setCatalogVisible(true)}
+                variant="secondary"
+              />
+            </View>
+
+            <Modal
+              visible={catalogVisible}
+              animationType="slide"
+              transparent
+              onRequestClose={() => setCatalogVisible(false)}
+            >
+              <View style={styles.catalogModalBackdrop}>
+                <View style={styles.catalogModalSheet}>
+                  <View style={styles.catalogHeaderRow}>
+                    <Text style={styles.sectionSubtitle}>{copy.catalogTitle}</Text>
+                    <PrimaryButton
+                      label={copy.closeCatalog}
+                      onPress={() => setCatalogVisible(false)}
+                      variant="secondary"
+                    />
+                  </View>
+                  <View style={styles.catalogCard}>
               <FormField
-                label="Buscar exercicio"
+                label={copy.catalogSearch}
                 value={catalogQuery}
                 onChangeText={setCatalogQuery}
-                placeholder="Supino, agachamento, remada..."
+                placeholder={copy.catalogSearchPlaceholder}
               />
               <View style={styles.row}>
                 <ChipButton
-                  label="Todos"
+                  label={copy.all}
                   active={catalogFilter === 'all'}
                   onPress={() => setCatalogFilter('all')}
                 />
                 <ChipButton
-                  label="Favoritos"
+                  label={copy.favorites}
                   active={catalogFilter === 'favorites'}
                   onPress={() => setCatalogFilter('favorites')}
                 />
                 <ChipButton
-                  label="Recentes"
+                  label={copy.recents}
                   active={catalogFilter === 'recent'}
                   onPress={() => setCatalogFilter('recent')}
                 />
                 {catalogQuery.trim() ? (
                   <PrimaryButton
-                    label="Criar Custom"
+                    label={copy.createCustom}
                     onPress={() => void createCustomExerciseFromQuery()}
                     variant="secondary"
                   />
@@ -485,7 +647,7 @@ export default function PlansScreen() {
 
               {favoriteCatalog.length > 0 ? (
                 <CatalogSection
-                  title="Favoritos"
+                  title={copy.favorites}
                   items={favoriteCatalog}
                   onAdd={(item) => void addExerciseFromCatalog(item)}
                   onToggleFavorite={(itemId) => void toggleCatalogFavorite(itemId)}
@@ -494,7 +656,7 @@ export default function PlansScreen() {
 
               {recentCatalog.length > 0 ? (
                 <CatalogSection
-                  title="Recentes"
+                  title={copy.recents}
                   items={recentCatalog}
                   onAdd={(item) => void addExerciseFromCatalog(item)}
                   onToggleFavorite={(itemId) => void toggleCatalogFavorite(itemId)}
@@ -502,34 +664,39 @@ export default function PlansScreen() {
               ) : null}
 
               <CatalogSection
-                title="Resultados"
+                title={copy.results}
                 items={catalogResults}
-                emptyText="Nenhum exercicio encontrado."
+                emptyText={copy.noCatalogResults}
                 onAdd={(item) => void addExerciseFromCatalog(item)}
                 onToggleFavorite={(itemId) => void toggleCatalogFavorite(itemId)}
               />
-            </View>
+                  </View>
+                </View>
+              </View>
+            </Modal>
 
             <View style={styles.row}>
-              <PrimaryButton label="Adicionar Exercício" onPress={addExercise} variant="secondary" />
+              <PrimaryButton label={copy.addExerciseManual} onPress={addExercise} variant="secondary" />
             </View>
 
             {draft.exercises.length === 0 ? (
-              <Text style={styles.helper}>Sem exercícios. Adicione o primeiro exercício.</Text>
+              <Text style={styles.helper}>{copy.noExercises}</Text>
             ) : (
               draft.exercises.map((exercise, exerciseIndex) => (
                 <View key={exercise.id} style={styles.exerciseCard}>
                   <View style={styles.exerciseHeader}>
-                    <Text style={styles.exerciseTitle}>Exercício {exerciseIndex + 1}</Text>
+                    <Text style={styles.exerciseTitle}>
+                      {(isEnglish ? 'Exercise' : 'Exercício')} {exerciseIndex + 1}
+                    </Text>
                     <PrimaryButton
-                      label="Remover"
+                      label={copy.remove}
                       variant="danger"
                       onPress={() => removeExercise(exercise.id)}
                     />
                   </View>
 
                   <FormField
-                    label="Nome do exercício"
+                    label={copy.exerciseName}
                     value={exercise.name}
                     onChangeText={(name) =>
                       patchDraft((prev) => ({
@@ -546,22 +713,22 @@ export default function PlansScreen() {
                   ) : null}
                   <View style={styles.row}>
                     <ChipButton
-                      label="Up"
+                      label={copy.up}
                       onPress={() => moveExercise(exercise.id, -1)}
                       disabled={exerciseIndex === 0}
                     />
                     <ChipButton
-                      label="Down"
+                      label={copy.down}
                       onPress={() => moveExercise(exercise.id, 1)}
                       disabled={exerciseIndex === draft.exercises.length - 1}
                     />
-                    <ChipButton label="Duplicar" onPress={() => duplicateExercise(exercise.id)} />
+                      <ChipButton label={copy.duplicate} onPress={() => duplicateExercise(exercise.id)} />
                   </View>
 
                   <View style={styles.row}>
                     <View style={styles.half}>
                       <FormField
-                        label="Grupo superset (opcional)"
+                        label={copy.supersetGroup}
                         value={exercise.supersetGroupId ?? ''}
                         onChangeText={(supersetGroupId) =>
                           patchDraft((prev) => ({
@@ -576,7 +743,7 @@ export default function PlansScreen() {
                     </View>
                     <View style={styles.half}>
                       <FormField
-                        label="Notas do exercício"
+                        label={copy.exerciseNotes}
                         value={exercise.notes ?? ''}
                         onChangeText={(notes) =>
                           patchDraft((prev) => ({
@@ -591,13 +758,15 @@ export default function PlansScreen() {
                     </View>
                   </View>
 
-                  <Text style={styles.sectionSubtitle}>Séries</Text>
+                  <Text style={styles.sectionSubtitle}>{copy.sets}</Text>
                   {exercise.sets.map((setItem) => (
                     <View key={setItem.id} style={styles.setCard}>
                       <View style={styles.setHeader}>
-                        <Text style={styles.setTitle}>Série {setItem.order}</Text>
+                        <Text style={styles.setTitle}>
+                          {(isEnglish ? 'Set' : 'Série')} {setItem.order}
+                        </Text>
                         <PrimaryButton
-                          label="Remover Série"
+                          label={copy.removeSet}
                           variant="secondary"
                           onPress={() => removeSet(exercise.id, setItem.id)}
                         />
@@ -606,7 +775,7 @@ export default function PlansScreen() {
                       <View style={styles.row}>
                         <View style={styles.third}>
                           <FormField
-                            label="Reps alvo"
+                            label={copy.repsTarget}
                             value={String(setItem.targetReps)}
                             onChangeText={(value) =>
                               patchDraft((prev) => ({
@@ -633,7 +802,7 @@ export default function PlansScreen() {
                         </View>
                         <View style={styles.third}>
                           <FormField
-                            label="Carga alvo (kg)"
+                            label={copy.weightTargetKg}
                             value={setItem.targetWeightKg != null ? String(setItem.targetWeightKg) : ''}
                             onChangeText={(value) =>
                               patchDraft((prev) => ({
@@ -661,7 +830,7 @@ export default function PlansScreen() {
                         </View>
                         <View style={styles.third}>
                           <FormField
-                            label="Descanso (s)"
+                            label={copy.restSeconds}
                             value={String(setItem.restSeconds)}
                             onChangeText={(value) =>
                               patchDraft((prev) => ({
@@ -725,7 +894,7 @@ export default function PlansScreen() {
                             )
                           }
                         />
-                        <ChipButton label="Duplicar serie" onPress={() => duplicateSet(exercise.id, setItem.id)} />
+                        <ChipButton label={copy.duplicateSet} onPress={() => duplicateSet(exercise.id, setItem.id)} />
                         <ChipButton
                           label={advancedSetIds.includes(setItem.id) ? 'Ocultar advanced' : 'Advanced'}
                           onPress={() => toggleAdvancedSet(setItem.id)}
@@ -734,7 +903,7 @@ export default function PlansScreen() {
                       </View>
 
                       <View style={styles.row}>
-                        {SET_TYPE_OPTIONS.map((option) => (
+                        {setTypeOptions.map((option) => (
                           <ChipButton
                             key={option.value}
                             label={option.label}
@@ -765,7 +934,7 @@ export default function PlansScreen() {
                         <View style={styles.row}>
                             <View style={styles.third}>
                               <FormField
-                                label="Drop group"
+                              label={copy.dropGroup}
                                 value={setItem.dropSetGroupId ?? ''}
                                 onChangeText={(dropSetGroupId) =>
                                   patchDraft((prev) => ({
@@ -789,7 +958,7 @@ export default function PlansScreen() {
                             </View>
                             <View style={styles.third}>
                               <FormField
-                                label="Tempo"
+                              label={copy.tempo}
                                 value={setItem.tempo ?? ''}
                                 onChangeText={(tempo) =>
                                   patchDraft((prev) => ({
@@ -864,7 +1033,7 @@ export default function PlansScreen() {
                       ) : null}
 
                       <FormField
-                        label="Notas da série"
+                        label={copy.setNotes}
                         value={setItem.notes ?? ''}
                         onChangeText={(notes) =>
                           patchDraft((prev) => ({
@@ -884,7 +1053,7 @@ export default function PlansScreen() {
                         placeholder="Dropset / rest-pause / pausas (texto livre)"
                       />
                       <FormField
-                        label="tagsJson (opcional)"
+                        label={isEnglish ? 'tagsJson (optional)' : 'tagsJson (opcional)'}
                         value={setItem.tagsJsonText}
                         onChangeText={(tagsJsonText) =>
                           patchDraft((prev) => ({
@@ -907,7 +1076,7 @@ export default function PlansScreen() {
                   ))}
 
                   <PrimaryButton
-                    label="Adicionar Série"
+                    label={copy.addSet}
                     onPress={() => addSet(exercise.id)}
                     variant="secondary"
                   />
@@ -999,6 +1168,7 @@ function CatalogRow({
   onToggleFavorite: () => void;
 }) {
   const { colors } = useAppTheme();
+  const { isEnglish } = useI18n();
   const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={styles.catalogRow}>
@@ -1006,13 +1176,17 @@ function CatalogRow({
         <Text style={styles.catalogName}>{item.name}</Text>
         <Text style={styles.catalogMeta}>
           {formatExerciseMetadata(item.metadata)}
-          {item.isUserCreated ? ' | custom' : ''}
-          {item.usageCount ? ` | uso ${item.usageCount}` : ''}
+          {item.isUserCreated ? (isEnglish ? ' | custom' : ' | custom') : ''}
+          {item.usageCount ? (isEnglish ? ` | uses ${item.usageCount}` : ` | uso ${item.usageCount}`) : ''}
         </Text>
       </View>
       <View style={styles.row}>
-        <ChipButton label={item.isFavorite ? 'Fav' : 'Star'} onPress={onToggleFavorite} active={item.isFavorite} />
-        <PrimaryButton label="Adicionar" onPress={onAdd} />
+        <ChipButton
+          label={item.isFavorite ? (isEnglish ? 'Fav' : 'Fav') : isEnglish ? 'Star' : 'Star'}
+          onPress={onToggleFavorite}
+          active={item.isFavorite}
+        />
+        <PrimaryButton label={isEnglish ? 'Add' : 'Adicionar'} onPress={onAdd} />
       </View>
     </View>
   );
@@ -1063,7 +1237,7 @@ function fromDraft(draft: WorkoutPlanDraft): WorkoutPlan {
     exercises: draft.exercises.map((exercise, exerciseIndex) => ({
       ...exercise,
       order: exerciseIndex + 1,
-      name: exercise.name.trim() || `Exercício ${exerciseIndex + 1}`,
+      name: exercise.name.trim() || `Exercise ${exerciseIndex + 1}`,
       notes: normalizeOptionalText(exercise.notes),
       supersetGroupId: normalizeOptionalText(exercise.supersetGroupId),
       sets: exercise.sets.map((setItem, setIndex) => ({
@@ -1198,6 +1372,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
     flexWrap: 'wrap',
     gap: 8,
   },
+  pickerWrap: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    backgroundColor: colors.inputBg,
+    overflow: 'hidden',
+  },
   chip: {
     minWidth: 120,
   },
@@ -1214,6 +1395,27 @@ function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
     borderRadius: 12,
     padding: 10,
     backgroundColor: colors.surfaceAlt,
+    gap: 10,
+  },
+  catalogModalBackdrop: {
+    flex: 1,
+    backgroundColor: '#00000088',
+    justifyContent: 'flex-end',
+  },
+  catalogModalSheet: {
+    maxHeight: '88%',
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    gap: 10,
+  },
+  catalogHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     gap: 10,
   },
   catalogBlock: {
